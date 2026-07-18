@@ -25,8 +25,6 @@ from app.protocol.alc7000.mapping import (
 )
 from app.protocol.models import LoggerSample
 from app.services.sim_physics import (
-    SimTemperatures,
-    channel_thermal_mode,
     clamp_process_currents,
     idle_measurement,
     simulate_channel,
@@ -75,14 +73,6 @@ class Alc7000Engine:
         self.version = "Sim 1.0"
         self.serial_number = "SIM-ALC7000"
         self.firmware = "ALC7000 Sim 1.0"
-        self._temps = SimTemperatures()
-
-    def temperatures(self) -> tuple[float, float, float]:
-        """(battery_C, psu_C, heatsink_C) — channel 1 drives battery heat."""
-        st = self.channels[0]
-        active = st.kan_status == KSTAT_AKTIV
-        charging, discharging = channel_thermal_mode(active, st.stage)
-        return self._temps.sample(charging=charging, discharging=discharging)
 
     def measure(self, ch: int) -> tuple[int, int, int]:
         """Rohwerte wie Gerät: U*1000, I*1000, C*100."""
