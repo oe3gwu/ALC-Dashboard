@@ -71,8 +71,9 @@ Shown in Settings as disabled options (`enabled=false`, `protocol=none`).
 
 `simulator: true` (only when `serial_port` is empty).
 
-- Starts the **profile-specific** simulator (e.g. `ALC 8500-2 Expert Simulator`, `ALC 8000 Plus Simulator`, …).
-- **Measurement criteria** for all simulators (current and future): [`backend/app/services/sim_physics.py`](../backend/app/services/sim_physics.py) — same rules as the ALC 8500-2 mock (idle `1.25 V × cells`, charge/discharge curves).
+- Starts the **profile-specific** simulator (label includes `· ×10 Zeit`, e.g. `ALC 8500-2 Expert Simulator · ×10 Zeit`).
+- **Shared physics** for all simulators: [`backend/app/services/sim_physics.py`](../backend/app/services/sim_physics.py) — chemistry-aware U/I/Cap (NiCd/NiMH, Li variants, Pb/AGM, LiFePO4, NiZn), CC→CV charge, discharge to cutoff, multi-phase programs.
+- Wall clock is **×10 accelerated**; each phase is capped (~20–120 s) so GUI workflows finish in a few minutes. When a program finishes, the channel returns to idle (`running=False`).
 - Wire simulators (7000, alc8xxx, alc3000, alc5000) still speak the **real** protocol of their device.
 - Port set → simulator off.
 - Legacy: `mock: true` → `simulator: true` on load.

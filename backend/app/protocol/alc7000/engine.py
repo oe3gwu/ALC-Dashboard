@@ -14,19 +14,23 @@ from app.protocol.alc7000.mapping import (
     PROG7000_ENTLADEN_LADEN,
     PROG7000_LADEN,
     PROG7000_TEST,
+    STAGE_CHARGE,
+    STAGE_DISCHARGE,
+    STAGE_IDLE,
     STRR_ENTLADEN,
     STRR_LADEN,
     STRR_UNDEF,
+    battery_from_7000,
     program_from_7000,
 )
 from app.protocol.models import LoggerSample
 from app.services.sim_physics import (
-    PROG_DISCHARGE,
-    PROG_DISCHARGE_CHARGE,
-    PROG_TEST,
+    clamp_process_currents,
     idle_measurement,
     simulate_channel,
 )
+
+_MODEL = "alc7000_expert"
 
 CHANNEL_COUNT = 4
 
@@ -42,6 +46,7 @@ class ChannelState:
         "kan_status",
         "ak_status",
         "i_richtg",
+        "stage",
         "t0",
         "logger",
     )
@@ -56,6 +61,7 @@ class ChannelState:
         self.kan_status = KSTAT_INAKTIV
         self.ak_status = 1  # Akku ang.
         self.i_richtg = STRR_UNDEF
+        self.stage = STAGE_IDLE
         self.t0 = 0.0
         self.logger: list[LoggerSample] = []
 
@@ -72,26 +78,29 @@ class Alc7000Engine:
         """Rohwerte wie Gerät: U*1000, I*1000, C*100."""
         st = self.channels[ch]
         cells = max(1, st.cells)
+        bt = battery_from_7000(st.akku_typ)
         if st.kan_status != KSTAT_AKTIV:
-            v, _i, _c = idle_measurement(cells)
+            v, _i, _c = idle_measurement(cells, bt)
             return int(round(v * 1000)), 0, 0
 
         dash_prog = program_from_7000(st.program)
         elapsed = max(0.0, time.time() - st.t0)
-        v, i_mA, cap_mAh, _stage = simulate_channel(
+        v, i_mA, cap_mAh, stage, finished = simulate_channel(
             dash_prog,
             cells,
             st.charge_A * 1000.0,
             st.discharge_A * 1000.0,
             st.capacity_Ah * 1000.0,
             elapsed,
+            battery_type=bt,
+            full_factor=100,
         )
-
-        # Direction for UI (negative current on discharge)
-        phase = dash_prog
-        if dash_prog == PROG_DISCHARGE_CHARGE:
-            phase = PROG_DISCHARGE if elapsed < 600 else 0x01
-        if phase in (PROG_DISCHARGE, PROG_TEST):
+        st.stage = stage
+        if finished:
+            st.kan_status = KSTAT_INAKTIV
+            st.i_richtg = STRR_UNDEF
+            st.stage = STAGE_IDLE
+        elif stage == STAGE_DISCHARGE:
             st.i_richtg = STRR_ENTLADEN
         else:
             st.i_richtg = STRR_LADEN
@@ -107,12 +116,25 @@ class Alc7000Engine:
             st.t0 = time.time()
             if st.program in (PROG7000_ENTLADEN, PROG7000_ENTLADEN_LADEN, PROG7000_TEST):
                 st.i_richtg = STRR_ENTLADEN
+                st.stage = STAGE_DISCHARGE
             else:
                 st.i_richtg = STRR_LADEN
+                st.stage = STAGE_CHARGE
             self._seed_logger(ch)
         else:
             st.kan_status = KSTAT_INAKTIV
             st.i_richtg = STRR_UNDEF
+            st.stage = STAGE_IDLE
+
+    def set_charge_mA(self, ch: int, mA: float) -> None:
+        st = self.channels[ch]
+        chg, _ = clamp_process_currents(_MODEL, ch, mA, st.discharge_A * 1000.0)
+        st.charge_A = max(0.05, chg / 1000.0)
+
+    def set_discharge_mA(self, ch: int, mA: float) -> None:
+        st = self.channels[ch]
+        _, dis = clamp_process_currents(_MODEL, ch, st.charge_A * 1000.0, mA)
+        st.discharge_A = max(0.05, dis / 1000.0)
 
     def _seed_logger(self, ch: int) -> None:
         st = self.channels[ch]

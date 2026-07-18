@@ -15,7 +15,17 @@ from app.protocol.units import (
     pack_u32,
     voltage_to_digits,
 )
-from app.services.sim_physics import idle_measurement, initial_stage, simulate_channel
+from app.devices.profiles import DEVICES
+from app.services.sim_physics import (
+    clamp_battery_type,
+    clamp_process_currents,
+    idle_measurement,
+    initial_stage,
+    simulate_channel,
+)
+
+_MODEL = "alc3000_pc"
+_ALLOWED_BT = DEVICES[_MODEL].battery_type_ids
 
 
 class Alc3000Simulator:
@@ -54,8 +64,10 @@ class Alc3000Simulator:
             p = wire.decode_channel_params(data)
             p.channel = 0
             p.full_factor = 250
-            p.charge_mA = min(p.charge_mA, 5000.0)
-            p.discharge_mA = min(p.discharge_mA, 5000.0)
+            p.charge_mA, p.discharge_mA = clamp_process_currents(
+                _MODEL, 0, p.charge_mA, p.discharge_mA
+            )
+            p.battery_type = clamp_battery_type(p.battery_type, _ALLOWED_BT)
             if not self.running[0]:
                 self.channels[0] = p
             return bytes([ord("p")]) + self._encode_params(self.channels[0])
@@ -122,22 +134,27 @@ class Alc3000Simulator:
 
     def _simulate(self) -> tuple[float, float, float]:
         p = self.channels[0]
-        v, i, cap, stage = simulate_channel(
+        v, i, cap, stage, finished = simulate_channel(
             p.program,
             p.cells,
             p.charge_mA,
             p.discharge_mA,
             p.capacity_mAh,
             time.time() - self.t0[0],
+            battery_type=p.battery_type,
+            full_factor=p.full_factor,
         )
         p.stage = stage
+        if finished:
+            self.running[0] = False
         return v, i, cap
 
     def _meas(self) -> bytes:
+        p = self.channels[0]
         if self.running[0]:
             v, i, cap = self._simulate()
         else:
-            v, i, cap = idle_measurement(self.channels[0].cells)
+            v, i, cap = idle_measurement(p.cells, p.battery_type)
         return pack_u16(voltage_to_digits(v)) + pack_u16(current_to_digits(i) if i else 0) + pack_u32(
             capacity_to_digits(cap)
         )

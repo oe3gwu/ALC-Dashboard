@@ -58,9 +58,9 @@ class Alc7000Simulator:
             elif befehl == "A":
                 e.activate(ch, 1 if param else 0)
             elif befehl == "I":
-                st.charge_A = max(0.05, param / 1000.0)
+                e.set_charge_mA(ch, float(param))
             elif befehl == "E":
-                st.discharge_A = max(0.05, param / 1000.0)
+                e.set_discharge_mA(ch, float(param))
             elif befehl == "K":
                 st.capacity_Ah = max(0.01, param / 100.0)
             else:

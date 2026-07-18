@@ -219,7 +219,7 @@ export const en: Record<MessageKey, string> = {
   'set.deviceDisabled': 'unavailable',
   'set.serialPort': 'Serial port',
   'set.simulator': 'Simulator',
-  'set.simulatorHint': 'Starts the simulator for the selected device (port must be empty).',
+  'set.simulatorHint': 'Starts the simulator for the selected device (port must be empty). Processes run at ×10 speed; phases finish within a few minutes.',
   'set.simulatorNeedsEmptyPort': 'Simulator is only available when no port is set.',
   'set.poll': 'Poll interval (s)',
   'set.placeholder': '/dev/ttyUSB0, /dev/ttyS0 or empty',

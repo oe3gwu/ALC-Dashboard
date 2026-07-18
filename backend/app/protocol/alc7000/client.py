@@ -201,9 +201,9 @@ class Alc7000Client:
                 continue
             aktiv = self.read_kan_status(k) == KSTAT_AKTIV
             if not aktiv:
-                # Canonical idle: 1.25 V × cells (8500-2 sim_physics)
                 cells = max(1, self.read_anz_zellen(k))
-                v, i, cap = idle_measurement(cells)
+                bt = battery_from_7000(self.read_aktyp(k))
+                v, i, cap = idle_measurement(cells, bt)
                 out.append(
                     ChannelMeasurement(
                         channel=ch,

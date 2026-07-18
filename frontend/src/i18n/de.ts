@@ -217,7 +217,7 @@ export const de = {
   'set.deviceDisabled': 'nicht verfügbar',
   'set.serialPort': 'Serieller Port',
   'set.simulator': 'Simulator',
-  'set.simulatorHint': 'Startet den Simulator des gewählten Geräts (Port muss leer sein).',
+  'set.simulatorHint': 'Startet den Simulator des gewählten Geräts (Port muss leer sein). Prozesse laufen ×10 beschleunigt; Phasen enden nach wenigen Minuten.',
   'set.simulatorNeedsEmptyPort': 'Simulator nur möglich, wenn kein Port eingetragen ist.',
   'set.poll': 'Abfrageintervall (s)',
   'set.placeholder': '/dev/ttyUSB0, /dev/ttyS0 oder leer',
