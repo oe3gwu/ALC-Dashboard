@@ -45,6 +45,10 @@ mkdir -p "$DEST/data/logger"
 touch "$DEST/data/logger/.gitkeep"
 
 echo "==> Python-venv + Dependencies…"
+if ! python3 -c "import venv" &>/dev/null; then
+  echo "Fehler: Python-venv fehlt. Auf Debian/Ubuntu: sudo apt install -y python3-venv"
+  exit 1
+fi
 if [[ ! -x "$DEST/.venv/bin/python" ]]; then
   python3 -m venv "$DEST/.venv"
 fi
