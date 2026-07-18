@@ -227,8 +227,12 @@ class Alc7000Client:
         return out
 
     def get_temperatures(self) -> Temperatures:
-        # Probe / UI: kein Sensor — Identifikation reicht für Connect-Check
+        # Probe / UI: Identifikation als Connect-Check; Simulator liefert bewegte Temps
         self.read_ident()
+        engine = getattr(self.link, "engine", None)
+        if engine is not None and hasattr(engine, "temperatures"):
+            bat, psu, sink = engine.temperatures()
+            return Temperatures(battery_C=bat, psu_C=psu, heatsink_C=sink)
         return Temperatures(battery_C=None, psu_C=None, heatsink_C=None)
 
     def get_battery_db(self, slot: int) -> BatteryDbEntry:

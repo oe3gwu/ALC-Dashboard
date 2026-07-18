@@ -39,24 +39,47 @@ export function Settings() {
     if (portSet && simulator) setSimulator(false)
   }, [portSet, simulator])
 
+  const applyFormConfig = async () => {
+    const sim = portSet ? false : simulator
+    await api.updateConfig({
+      device_model: model,
+      serial_port: sim ? '' : serial.trim(),
+      simulator: sim,
+      poll_interval: poll,
+    })
+    if (sim) setSerial('')
+    setSimulator(sim)
+    return sim
+  }
+
   const save = async () => {
     setErr('')
     setMsg('')
-    const sim = portSet ? false : simulator
     try {
-      await api.updateConfig({
-        device_model: model,
-        serial_port: sim ? '' : serial.trim(),
-        simulator: sim,
-        poll_interval: poll,
-      })
-      if (sim) setSerial('')
-      setSimulator(sim)
+      await applyFormConfig()
       setMsg(t('set.saved'))
       await refreshCaps()
       await refreshLive()
     } catch (e) {
       setErr(String((e as Error).message || e))
+      await refreshLive()
+    }
+  }
+
+  const connect = async () => {
+    setErr('')
+    setMsg('')
+    try {
+      const sim = await applyFormConfig()
+      const port = sim ? null : serial.trim() || null
+      await api.connect({ port, simulator: sim })
+      setMsg(t('set.connected'))
+      await refreshCaps()
+      await refreshLive()
+    } catch (e) {
+      setErr(String((e as Error).message || e))
+      await refreshCaps()
+      await refreshLive()
     }
   }
 
@@ -127,8 +150,11 @@ export function Settings() {
         </label>
       </div>
       <div className="row">
-        <button className="primary" onClick={save}>
+        <button type="button" className="primary" onClick={save}>
           {t('common.save')}
+        </button>
+        <button type="button" className="primary" onClick={connect}>
+          {t('set.connect')}
         </button>
         <button type="button" onClick={disconnect}>
           {t('set.disconnect')}

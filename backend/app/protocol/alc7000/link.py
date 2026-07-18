@@ -5,9 +5,12 @@ from __future__ import annotations
 import logging
 import threading
 import time
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 import serial
+
+if TYPE_CHECKING:
+    from app.serial_manager import SerialIoActivity
 
 from app.protocol.alc7000.framing import (
     ACK,
@@ -37,6 +40,15 @@ class Alc7000SerialLink:
         self._lock = threading.RLock()
         self.serial_number: str | None = None
         self.firmware: str | None = None
+        self.activity: SerialIoActivity | None = None
+
+    def _note_tx(self) -> None:
+        if self.activity:
+            self.activity.note_tx()
+
+    def _note_rx(self) -> None:
+        if self.activity:
+            self.activity.note_rx()
 
     def open(self) -> None:
         parity = serial.PARITY_EVEN if PARITY == "E" else serial.PARITY_NONE
@@ -73,9 +85,11 @@ class Alc7000SerialLink:
                 raise RuntimeError("Serielle Schnittstelle nicht geöffnet")
             frame = build_string_request(befehl)
             self._ser.write(frame)
+            self._note_tx()
             identifier = ""
             count = 0
             timeout_retry = 0
+            saw_rx = False
             while True:
                 c = self._ser.read(1)
                 if c == b"":
@@ -83,6 +97,9 @@ class Alc7000SerialLink:
                     if timeout_retry > MAX_TIMEOUT_RETRY:
                         raise TimeoutError("Timeout beim Lesen (String)")
                     continue
+                if not saw_rx:
+                    self._note_rx()
+                    saw_rx = True
                 timeout_retry = 0
                 if c == bytes([ETX]):
                     break
@@ -112,6 +129,7 @@ class Alc7000SerialLink:
             channel_0 = max(0, kanal_1based - 1)
             frame = build_data_request(befehl, channel_0, param, param_len)
             self._ser.write(frame)
+            self._note_tx()
 
             if ack:
                 return self._wait_ack(frame)
@@ -119,6 +137,7 @@ class Alc7000SerialLink:
             # Auf STX der Antwort warten
             retry = 0
             timeout_retry = 0
+            saw_rx = False
             while True:
                 c = self._ser.read(1)
                 if c == b"":
@@ -126,6 +145,9 @@ class Alc7000SerialLink:
                     if timeout_retry > MAX_TIMEOUT_RETRY:
                         raise TimeoutError("Timeout beim Lesen (Daten)")
                     continue
+                if not saw_rx:
+                    self._note_rx()
+                    saw_rx = True
                 timeout_retry = 0
                 if c == bytes([STX]):
                     break
@@ -180,6 +202,7 @@ class Alc7000SerialLink:
         assert self._ser
         retry = 0
         timeout_retry = 0
+        saw_rx = False
         while True:
             c = self._ser.read(1)
             if c == b"":
@@ -187,6 +210,9 @@ class Alc7000SerialLink:
                 if timeout_retry > MAX_TIMEOUT_RETRY:
                     raise TimeoutError("Timeout auf ACK")
                 continue
+            if not saw_rx:
+                self._note_rx()
+                saw_rx = True
             timeout_retry = 0
             if c in (bytes([STX]), bytes([ETX])):
                 continue
@@ -194,6 +220,7 @@ class Alc7000SerialLink:
                 return
             # Retry write like source
             self._ser.write(frame)
+            self._note_tx()
             retry += 1
             if retry > 3:
                 raise ValueError("Befehlsübermittlung fehlgeschlagen (kein ACK)")

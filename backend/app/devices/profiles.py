@@ -39,7 +39,7 @@ class DeviceProfile:
 
     @property
     def simulator_label(self) -> str:
-        return f"{self.label} Simulator · ×10 Zeit"
+        return f"{self.label} Simulator"
 
     def to_dict(self) -> dict[str, Any]:
         return {

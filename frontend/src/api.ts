@@ -36,6 +36,11 @@ export type ConnectionStatus = {
   device_label?: string
   status_label?: string | null
   channel_count?: number
+  last_error?: string | null
+  /** Real serial TX pulses (monotone); only when hardware connected */
+  tx_seq?: number
+  /** Real serial RX pulses (monotone); only when hardware connected */
+  rx_seq?: number
 }
 
 export type LivePayload = {

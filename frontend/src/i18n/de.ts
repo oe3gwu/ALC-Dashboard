@@ -15,6 +15,9 @@ export const de = {
 
   'sidebar.status': 'Status',
   'sidebar.simulator': 'Simulator',
+  'sidebar.modeConnected': 'Verbunden',
+  'sidebar.modeSim': 'Simulator (Zeit: ×10)',
+  'sidebar.modeError': 'Error',
   'sidebar.offline': 'Offline',
   'sidebar.temps': 'Temperaturen',
   'sidebar.heatsink': 'Kühlkörper',
@@ -222,6 +225,8 @@ export const de = {
   'set.poll': 'Abfrageintervall (s)',
   'set.placeholder': '/dev/ttyUSB0, /dev/ttyS0 oder leer',
   'set.saved': 'config.yaml gespeichert',
+  'set.connect': 'Verbinden',
+  'set.connected': 'Verbunden',
   'set.disconnect': 'Trennen',
   'set.disconnected': 'Verbindung getrennt',
 

@@ -1,9 +1,10 @@
-"""ALC 8500-2 Expert Simulator (STX/USB protocol) for development without hardware."""
+"""Wire simulator for ALC 8500-2 Expert (STX/USB protocol)."""
 
 from __future__ import annotations
 
 import time
 
+from app.devices.profiles import DEVICES
 from app.protocol.framing import build_frame, parse_frame
 from app.protocol.models import (
     BatteryDbEntry,
@@ -17,10 +18,12 @@ from app.protocol.units import (
     current_to_digits,
     pack_u16,
     pack_u32,
+    temp_to_digits,
     voltage_to_digits,
 )
-from app.devices.profiles import DEVICES
 from app.services.sim_physics import (
+    SimTemperatures,
+    channel_thermal_mode,
     clamp_battery_type,
     clamp_process_currents,
     idle_measurement,
@@ -32,7 +35,9 @@ _MODEL = "alc8500_2_expert"
 _ALLOWED_BT = DEVICES[_MODEL].battery_type_ids
 
 
-class MockDevice:
+class Alc8500_2Simulator:
+    """Four-channel STX simulator for ALC 8500-2 Expert."""
+
     def __init__(self) -> None:
         self.channels = [ChannelParams(channel=i, battery_type=0x01, cells=4, capacity_mAh=2000) for i in range(4)]
         self.running = [False] * 4
@@ -45,6 +50,7 @@ class MockDevice:
         self.h = DeviceParamsH()
         self.j = DeviceParamsJ()
         self._logger: dict[int, list[bytes]] = {i: [] for i in range(4)}
+        self._temps = SimTemperatures()
         self.serial_number = "SIM-8500-2"
         self.firmware = "Simulator 1.0"
 
@@ -89,7 +95,15 @@ class MockDevice:
         if c == "m":
             return bytes([ord("m")]) + self._meas_all()
         if c == "t":
-            return bytes([ord("t")]) + pack_u16(2500) + pack_u16(3200) + pack_u16(2800)
+            ch0 = self.channels[0]
+            charging, discharging = channel_thermal_mode(self.running[0], ch0.stage)
+            bat, psu, sink = self._temps.sample(charging=charging, discharging=discharging)
+            return (
+                bytes([ord("t")])
+                + pack_u16(temp_to_digits(bat))
+                + pack_u16(temp_to_digits(psu))
+                + pack_u16(temp_to_digits(sink))
+            )
         if c == "d":
             slot = data[0] if data else 0
             return bytes([ord("d")]) + self.db[slot].encode()
@@ -120,11 +134,12 @@ class MockDevice:
         if c == "v":
             ch = data[0] if data else 0
             block = (data[1] << 8) | data[2] if len(data) >= 3 else 0
-            return bytes([ord("v"), ch, data[1] if len(data) > 1 else 0, data[2] if len(data) > 2 else 0]) + self._logger_block(ch, block)
+            return bytes([ord("v"), ch, data[1] if len(data) > 1 else 0, data[2] if len(data) > 2 else 0]) + self._logger_block(
+                ch, block
+            )
         return bytes([0x04])
 
     def _encode_params(self, p: ChannelParams) -> bytes:
-        # include logger + stage like a read response
         base = p.encode_set()
         return base + pack_u16(p.logger_samples) + bytes([p.stage & 0xFF])
 
@@ -162,7 +177,6 @@ class MockDevice:
     def _seed_logger(self, ch: int) -> None:
         p = self.channels[ch]
         records: list[bytes] = []
-        # header fields
         records.append(
             bytes(
                 [
@@ -203,7 +217,6 @@ class MockDevice:
     def _logger_block(self, ch: int, block: int) -> bytes:
         records = self._logger.get(ch, [])
         if not records:
-            # empty logger — seed a short demo series so UI/PDF remain usable in mock
             self._seed_logger(ch)
             records = self._logger[ch]
         start = block * 100

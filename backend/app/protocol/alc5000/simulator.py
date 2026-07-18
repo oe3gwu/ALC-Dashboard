@@ -22,10 +22,13 @@ from app.protocol.units import (
     current_to_digits,
     pack_u16,
     pack_u32,
+    temp_to_digits,
     voltage_to_digits,
 )
 from app.devices.profiles import DEVICES
 from app.services.sim_physics import (
+    SimTemperatures,
+    channel_thermal_mode,
     clamp_battery_type,
     clamp_process_currents,
     idle_measurement,
@@ -59,6 +62,7 @@ class Alc5000Simulator:
         self.h = DeviceParamsH(unused=10500)
         self.j = DeviceParamsJ()
         self._logger: dict[int, list[bytes]] = {i: [] for i in range(channel_count)}
+        self._temps = SimTemperatures()
         # FW field must start with Ident j (PDF connect gate)
         self.firmware = (IDENT_5000_FW2 + "2.10     ")[:10]
         self.serial_number = "SIM-ALC5000"
@@ -113,7 +117,15 @@ class Alc5000Simulator:
             ch = self._ch(data)
             return bytes([ord("m"), ch]) + self._meas(ch)
         if c == "t":
-            return bytes([ord("t")]) + pack_u16(2500) + pack_u16(3200) + pack_u16(2800)
+            ch0 = self.channels[0]
+            charging, discharging = channel_thermal_mode(self.running[0], ch0.stage)
+            bat, psu, sink = self._temps.sample(charging=charging, discharging=discharging)
+            return (
+                bytes([ord("t")])
+                + pack_u16(temp_to_digits(bat))
+                + pack_u16(temp_to_digits(psu))
+                + pack_u16(temp_to_digits(sink))
+            )
         if c == "d":
             slot = min(data[0] if data else 0, DB_SLOTS - 1)
             return bytes([ord("d")]) + wire.encode_battery_db(self.db[slot])

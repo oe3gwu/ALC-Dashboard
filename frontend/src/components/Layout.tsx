@@ -1,3 +1,4 @@
+import { useEffect, useRef, useState } from 'react'
 import { NavLink, Outlet } from 'react-router-dom'
 import { useCapabilities } from '../capabilities'
 import { useLive } from '../live'
@@ -37,18 +38,49 @@ function fmtTemp(n: number | null | undefined) {
   return `${n.toFixed(1)} °C`
 }
 
+function useSerialLedPulse(seq: number) {
+  const [on, setOn] = useState(false)
+  const prev = useRef(seq)
+  useEffect(() => {
+    if (seq === prev.current) return
+    prev.current = seq
+    setOn(true)
+    const t = window.setTimeout(() => setOn(false), 140)
+    return () => window.clearTimeout(t)
+  }, [seq])
+  return on
+}
+
 export function Layout() {
   const { connection, temperatures } = useLive()
-  const { capabilities } = useCapabilities()
+  const { capabilities, devices, deviceModel } = useCapabilities()
   const { theme, toggle: toggleTheme } = useTheme()
   const { locale, toggle: toggleLocale, t } = useLocale()
 
+  const connected = Boolean(connection?.connected)
   const isSim = Boolean(connection?.simulator ?? connection?.mock)
-  const statusLabel = connection?.connected
-    ? isSim
-      ? connection.status_label || capabilities.simulator_label || t('sidebar.simulator')
-      : connection.port
-    : t('sidebar.offline')
+  const lastError = (connection?.last_error || '').trim()
+  const hasError = Boolean(lastError) && !connected
+  const liveHw = connected && !isSim
+  const txOn = useSerialLedPulse(liveHw ? (connection?.tx_seq ?? 0) : 0)
+  const rxOn = useSerialLedPulse(liveHw ? (connection?.rx_seq ?? 0) : 0)
+  const profileLabel =
+    connection?.device_label ||
+    devices.find((d) => d.id === (connection?.device_model || deviceModel))?.label ||
+    t('sidebar.simulator')
+  // Always show charger name; when live hardware is up, prefer the port on the first line
+  const statusLabel = liveHw ? connection?.port || profileLabel : profileLabel
+
+  let statusDotClass = ''
+  if (hasError) {
+    statusDotClass = 'error'
+  } else if (liveHw) {
+    if (rxOn) statusDotClass = 'pulse-rx'
+    else if (txOn) statusDotClass = 'pulse-tx'
+    else statusDotClass = 'sim' // orange idle; flashes red/green on real serial I/O
+  } else if (connected && isSim) {
+    statusDotClass = 'sim'
+  }
 
   return (
     <div className="app">
@@ -92,9 +124,23 @@ export function Layout() {
         <div className="sidebar-box">
           <div className="sidebar-box-title">{t('sidebar.status')}</div>
           <div className="sidebar-box-row">
-            <span className={`status-dot ${connection?.connected ? (isSim ? 'mock' : 'on') : ''}`} />
-            <span>{statusLabel}</span>
+            <span
+              className={`status-dot${statusDotClass ? ` ${statusDotClass}` : ''}`}
+              title={liveHw ? 'RX / TX' : undefined}
+            />
+            <span className="sidebar-status-text">{statusLabel}</span>
           </div>
+          {hasError ? (
+            <span className="sidebar-mode-badge error" title={lastError}>
+              {t('sidebar.modeError')}
+            </span>
+          ) : !connected ? (
+            <span className="sidebar-mode-badge offline">{t('sidebar.offline')}</span>
+          ) : isSim ? (
+            <span className="sidebar-mode-badge">{t('sidebar.modeSim')}</span>
+          ) : (
+            <span className="sidebar-mode-badge connected">{t('sidebar.modeConnected')}</span>
+          )}
         </div>
 
         <div className="sidebar-box">

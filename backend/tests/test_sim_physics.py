@@ -2,6 +2,9 @@
 
 from __future__ import annotations
 
+import random
+
+from app.protocol.units import temp_from_digits, temp_to_digits
 from app.services.sim_physics import (
     MAX_PHASE_WALL_S,
     PROG_CHARGE,
@@ -12,6 +15,7 @@ from app.services.sim_physics import (
     STAGE_DISCHARGE,
     STAGE_IDLE,
     TIME_SCALE,
+    SimTemperatures,
     clamp_battery_type,
     clamp_process_currents,
     idle_measurement,
@@ -125,3 +129,28 @@ def test_clamp_currents_8500_2():
 def test_clamp_battery_type():
     assert clamp_battery_type(0x07, (0x00, 0x01, 0x04)) == 0x00
     assert clamp_battery_type(0x01, (0x00, 0x01, 0x04)) == 0x01
+
+
+def test_temp_to_digits_roundtrip():
+    assert temp_to_digits(25.0) == 2500
+    assert temp_to_digits(32.0) == 3200
+    assert temp_to_digits(28.0) == 2800
+    assert abs(temp_from_digits(temp_to_digits(25.37)) - 25.37) < 0.01
+
+
+def test_sim_temperatures_heatsink_psu_step():
+    rng = random.Random(1)
+    temps = SimTemperatures(now=0.0, rng=rng)
+    temps.sample(now=0.0)
+    # Force several 5 s steps — underlying walk must leave start values
+    temps.sample(now=25.0)
+    assert temps._hs != SimTemperatures.BASE_HEATSINK_C or temps._psu != SimTemperatures.BASE_PSU_C
+    assert abs(temps._hs - SimTemperatures.BASE_HEATSINK_C) <= SimTemperatures.BAND_C
+    assert abs(temps._psu - SimTemperatures.BASE_PSU_C) <= SimTemperatures.BAND_C
+
+
+def test_sim_temperatures_battery_rises_when_charging():
+    temps = SimTemperatures(now=0.0, rng=random.Random(0))
+    bat0, _, _ = temps.sample(charging=False, discharging=False, now=0.0)
+    bat1, _, _ = temps.sample(charging=True, discharging=False, now=30.0)
+    assert bat1 > bat0

@@ -18,10 +18,13 @@ from app.protocol.units import (
     current_to_digits,
     pack_u16,
     pack_u32,
+    temp_to_digits,
     voltage_to_digits,
 )
 from app.devices.profiles import DEVICES
 from app.services.sim_physics import (
+    SimTemperatures,
+    channel_thermal_mode,
     clamp_battery_type,
     clamp_process_currents,
     idle_measurement,
@@ -58,6 +61,7 @@ class Alc8xxxSimulator:
         ]
         self.g = DeviceParamsG()
         self._logger: dict[int, list[bytes]] = {i: [] for i in range(self.channel_count)}
+        self._temps = SimTemperatures()
         model = "8500Ex" if self.ident_prefix == IDENT_8500 else "8000Pl"
         # 9 ASCII bytes, first letter = variant
         self.ident = (self.ident_prefix + model).ljust(9)[:9]
@@ -111,7 +115,15 @@ class Alc8xxxSimulator:
         if c == "m":
             return bytes([ord("m")]) + self._meas_all()
         if c == "t":
-            return bytes([ord("t")]) + pack_u16(2500) + pack_u16(3200) + pack_u16(2800)
+            ch0 = self.channels[0]
+            charging, discharging = channel_thermal_mode(self.running[0], ch0.stage)
+            bat, psu, sink = self._temps.sample(charging=charging, discharging=discharging)
+            return (
+                bytes([ord("t")])
+                + pack_u16(temp_to_digits(bat))
+                + pack_u16(temp_to_digits(psu))
+                + pack_u16(temp_to_digits(sink))
+            )
         if c == "d":
             slot = data[0] if data else 0
             slot = min(slot, DB_SLOTS - 1)

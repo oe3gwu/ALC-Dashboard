@@ -48,6 +48,14 @@ def temp_from_digits(digits: int) -> float | None:
     return digits / 100.0
 
 
+def temp_to_digits(celsius: float) -> int:
+    """°C → protocol digits (0.01 °C/digit). Negative via TEMP_NEG_OFFSET."""
+    t = float(celsius)
+    if t < 0:
+        return max(0, min(0xFFFF, int(round(TEMP_NEG_OFFSET + t * 100.0))))
+    return max(0, min(0xFFFF, int(round(t * 100.0))))
+
+
 def u16(data: bytes, offset: int) -> int:
     return (data[offset] << 8) | data[offset + 1]
 

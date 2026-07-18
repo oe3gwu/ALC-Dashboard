@@ -166,6 +166,7 @@ def connect(body: ConnectRequest) -> dict[str, Any]:
         sim = body.simulator if body.simulator is not None else body.mock
         return manager.connect(port=body.port, use_simulator=sim, use_mock=body.mock)
     except Exception as exc:
+        manager.last_error = str(exc)
         raise HTTPException(400, str(exc)) from exc
 
 

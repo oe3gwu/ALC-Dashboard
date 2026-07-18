@@ -17,6 +17,9 @@ export const en: Record<MessageKey, string> = {
 
   'sidebar.status': 'Status',
   'sidebar.simulator': 'Simulator',
+  'sidebar.modeConnected': 'Connected',
+  'sidebar.modeSim': 'Simulator (Time: ×10)',
+  'sidebar.modeError': 'Error',
   'sidebar.offline': 'Offline',
   'sidebar.temps': 'Temperatures',
   'sidebar.heatsink': 'Heatsink',
@@ -224,6 +227,8 @@ export const en: Record<MessageKey, string> = {
   'set.poll': 'Poll interval (s)',
   'set.placeholder': '/dev/ttyUSB0, /dev/ttyS0 or empty',
   'set.saved': 'config.yaml saved',
+  'set.connect': 'Connect',
+  'set.connected': 'Connected',
   'set.disconnect': 'Disconnect',
   'set.disconnected': 'Disconnected',
 

@@ -32,4 +32,4 @@ Target device: Ident prefix **`j`** (ALC 5000 mobile, firmware > 2.00). Prefix *
 | Multi-byte endian | Big-endian (same digit packing as USB ALC family) | `assumed` |
 | Channel count | 2 (project profile; PDF only gives numbering rule) | `assumed` |
 | FW > 2.00 check | Ident prefix `j` implies FW > 2.00 per PDF table | PDF-backed mapping |
-| Trailing `stage` on `p` read | After Vollfaktor (PDF lists stage only on `a`; same dashboard extension as alc3000/Mock) | `assumed` |
+| Trailing `stage` on `p` read | After Vollfaktor (PDF lists stage only on `a`; same dashboard extension as alc3000/alc8500_2) | `assumed` |

@@ -13,10 +13,13 @@ from app.protocol.units import (
     current_to_digits,
     pack_u16,
     pack_u32,
+    temp_to_digits,
     voltage_to_digits,
 )
 from app.devices.profiles import DEVICES
 from app.services.sim_physics import (
+    SimTemperatures,
+    channel_thermal_mode,
     clamp_battery_type,
     clamp_process_currents,
     idle_measurement,
@@ -46,6 +49,7 @@ class Alc3000Simulator:
         self.h = DeviceParamsH()
         self.j = DeviceParamsJ()
         self._logger: list[bytes] = []
+        self._temps = SimTemperatures()
         self.ident = (IDENT_3000 + "ALC3000").ljust(9)[:9]
         self.serial_number = "SIM-ALC3000"
         self.firmware = "Alc3000 Sim 1.0"
@@ -88,7 +92,15 @@ class Alc3000Simulator:
         if c == "m":
             return bytes([ord("m")]) + self._meas()
         if c == "t":
-            return bytes([ord("t")]) + pack_u16(2500) + pack_u16(3200) + pack_u16(2800)
+            ch0 = self.channels[0]
+            charging, discharging = channel_thermal_mode(self.running[0], ch0.stage)
+            bat, psu, sink = self._temps.sample(charging=charging, discharging=discharging)
+            return (
+                bytes([ord("t")])
+                + pack_u16(temp_to_digits(bat))
+                + pack_u16(temp_to_digits(psu))
+                + pack_u16(temp_to_digits(sink))
+            )
         if c == "d":
             slot = min(data[0] if data else 0, DB_SLOTS - 1)
             return bytes([ord("d")]) + wire.encode_battery_db(self.db[slot])

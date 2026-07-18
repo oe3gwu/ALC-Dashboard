@@ -7,6 +7,8 @@ capped so GUI workflows finish in a few minutes.
 from __future__ import annotations
 
 import math
+import random
+import time
 from typing import Sequence
 
 # Program bytes as on 8500 USB family
@@ -245,3 +247,79 @@ def clamp_battery_type(battery_type: int, allowed: Sequence[int]) -> int:
     if bt in allowed:
         return bt
     return int(allowed[0])
+
+
+def channel_thermal_mode(running: bool, stage: int) -> tuple[bool, bool]:
+    """Map channel-0 stage to (charging, discharging) for battery temperature."""
+    if not running:
+        return False, False
+    st = int(stage) & 0xFF
+    if st == STAGE_DISCHARGE:
+        return False, True
+    if st in (STAGE_CHARGE, STAGE_TRICKLE):
+        return True, False
+    return False, False
+
+
+class SimTemperatures:
+    """Lightly moving simulator temperatures (shared by all ALC simulators)."""
+
+    BASE_BATTERY_C = 25.0
+    BASE_PSU_C = 32.0
+    BASE_HEATSINK_C = 28.0
+    BAND_C = 2.0
+    STEP_S = 5.0
+    STEP_C = 0.1
+    SIN_AMP_C = 0.3
+
+    def __init__(self, *, now: float | None = None, rng: random.Random | None = None) -> None:
+        t = time.time() if now is None else float(now)
+        self._t0 = t
+        self._last_step = t
+        self._last_sample = t
+        self._bat = self.BASE_BATTERY_C
+        self._psu = self.BASE_PSU_C
+        self._hs = self.BASE_HEATSINK_C
+        self._rng = rng or random.Random()
+
+    def _clamp(self, value: float, base: float) -> float:
+        return max(base - self.BAND_C, min(base + self.BAND_C, value))
+
+    def sample(
+        self,
+        *,
+        charging: bool = False,
+        discharging: bool = False,
+        now: float | None = None,
+    ) -> tuple[float, float, float]:
+        """Return (battery_C, psu_C, heatsink_C)."""
+        t = time.time() if now is None else float(now)
+        # Heatsink / PSU: ±0.1 °C every 5 s
+        while t - self._last_step >= self.STEP_S:
+            self._last_step += self.STEP_S
+            step = self.STEP_C if self._rng.random() < 0.5 else -self.STEP_C
+            self._hs = self._clamp(self._hs + step, self.BASE_HEATSINK_C)
+            step = self.STEP_C if self._rng.random() < 0.5 else -self.STEP_C
+            self._psu = self._clamp(self._psu + step, self.BASE_PSU_C)
+
+        dt = max(0.0, t - self._last_sample)
+        self._last_sample = t
+        # Battery reacts to channel-1 charge/discharge
+        if charging:
+            self._bat += 0.04 * dt
+        elif discharging:
+            self._bat -= 0.03 * dt
+        else:
+            # drift toward ambient
+            self._bat += (self.BASE_BATTERY_C - self._bat) * min(1.0, 0.05 * dt)
+        self._bat = self._clamp(self._bat, self.BASE_BATTERY_C)
+
+        elapsed = t - self._t0
+        sin_hs = self.SIN_AMP_C * math.sin(elapsed / 17.0)
+        sin_psu = self.SIN_AMP_C * math.sin(elapsed / 19.0 + 1.1)
+        sin_bat = 0.15 * math.sin(elapsed / 23.0 + 0.4)
+
+        bat = self._clamp(self._bat + sin_bat, self.BASE_BATTERY_C)
+        psu = self._clamp(self._psu + sin_psu, self.BASE_PSU_C)
+        hs = self._clamp(self._hs + sin_hs, self.BASE_HEATSINK_C)
+        return round(bat, 2), round(psu, 2), round(hs, 2)

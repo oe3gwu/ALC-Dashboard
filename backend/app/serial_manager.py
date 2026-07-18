@@ -24,11 +24,39 @@ from app.protocol.alc8xxx.simulator import Alc8xxxSimulator
 from app.protocol.commands import ProtocolClient
 from app.protocol.constants import BAUDRATE, BYTESIZE, PARITY, STOPBITS
 from app.protocol.framing import extract_frames as alc8500_extract_frames
-from app.services.mock_device import MockDevice
+from app.protocol.alc8500_2.simulator import Alc8500_2Simulator
 
 log = logging.getLogger(__name__)
 
 ClientType = ProtocolClient | Alc7000Client | Alc8xxxClient | Alc3000Client | Alc5000Client
+
+
+class SerialIoActivity:
+    """Monotonic TX/RX pulse counters for real serial traffic (UI LEDs)."""
+
+    __slots__ = ("_lock", "tx_seq", "rx_seq")
+
+    def __init__(self) -> None:
+        self._lock = threading.Lock()
+        self.tx_seq = 0
+        self.rx_seq = 0
+
+    def note_tx(self) -> None:
+        with self._lock:
+            self.tx_seq += 1
+
+    def note_rx(self) -> None:
+        with self._lock:
+            self.rx_seq += 1
+
+    def reset(self) -> None:
+        with self._lock:
+            self.tx_seq = 0
+            self.rx_seq = 0
+
+    def snapshot(self) -> tuple[int, int]:
+        with self._lock:
+            return self.tx_seq, self.rx_seq
 
 
 @dataclass
@@ -62,6 +90,7 @@ class SerialTransport:
         self._lock = threading.RLock()
         self._buf = bytearray()
         self._extract = alc8500_extract_frames
+        self.activity: SerialIoActivity | None = None
 
     def open(self) -> None:
         self._ser = serial.Serial(
@@ -93,10 +122,16 @@ class SerialTransport:
             self._buf.clear()
             self._ser.write(frame)
             self._ser.flush()
+            if self.activity:
+                self.activity.note_tx()
             deadline = time.monotonic() + timeout
+            saw_rx = False
             while time.monotonic() < deadline:
                 chunk = self._ser.read(256)
                 if chunk:
+                    if self.activity and not saw_rx:
+                        self.activity.note_rx()
+                        saw_rx = True
                     self._buf.extend(chunk)
                     frames, self._buf = self._extract(self._buf)
                     if frames:
@@ -116,6 +151,7 @@ class SerialManager:
         self.simulator = False
         self.device_model: str = cfg.device_model
         self.last_error: str | None = None
+        self._io_activity = SerialIoActivity()
 
     @property
     def mock(self) -> bool:
@@ -240,8 +276,11 @@ class SerialManager:
                 self.last_error = "Kein ALC-Gerät gefunden"
                 raise RuntimeError(self.last_error)
 
+            self._io_activity.reset()
+
             if profile.protocol == "alc7000_rs232":
                 link = Alc7000SerialLink(chosen, profile.baudrate)
+                link.activity = self._io_activity
                 link.open()
                 client = Alc7000Client(link)
                 ident = client.read_ident()
@@ -254,6 +293,7 @@ class SerialManager:
                 self._client = client
             elif profile.protocol == "alc8500_usb":
                 transport = SerialTransport(chosen, self.cfg.baudrate or profile.baudrate)
+                transport.activity = self._io_activity
                 transport.open()
                 client = ProtocolClient(transport)
                 client.get_temperatures()
@@ -261,6 +301,7 @@ class SerialManager:
                 self._client = client
             elif profile.protocol == "alc8xxx_usb":
                 transport = SerialTransport(chosen, self.cfg.baudrate or profile.baudrate)
+                transport.activity = self._io_activity
                 transport.open()
                 client8 = Alc8xxxClient(
                     transport,
@@ -272,6 +313,7 @@ class SerialManager:
                 self._client = client8
             elif profile.protocol == "alc3000_usb":
                 transport = SerialTransport(chosen, self.cfg.baudrate or profile.baudrate)
+                transport.activity = self._io_activity
                 transport.open()
                 client3 = Alc3000Client(transport)
                 client3.get_temperatures()
@@ -279,6 +321,7 @@ class SerialManager:
                 self._client = client3
             elif profile.protocol == "alc5000_usb":
                 transport = SerialTransport(chosen, self.cfg.baudrate or profile.baudrate)
+                transport.activity = self._io_activity
                 transport.open()
                 client5 = Alc5000Client(transport, channel_count=profile.channel_count)
                 try:
@@ -313,11 +356,9 @@ class SerialManager:
             self.last_error = None
             return self.status()
         if profile.protocol == "alc8500_usb":
-            mock = MockDevice()
-            mock.serial_number = "SIM-8500-2"
-            mock.firmware = "Simulator 1.0"
-            self._transport = mock
-            self._client = ProtocolClient(mock)
+            sim8500 = Alc8500_2Simulator()
+            self._transport = sim8500
+            self._client = ProtocolClient(sim8500)
             self.connected_port = "simulator"
             self.simulator = True
             self.last_error = None
@@ -372,6 +413,7 @@ class SerialManager:
             self._client = None
             self.connected_port = None
             self.simulator = False
+            self._io_activity.reset()
 
     @property
     def client(self) -> ClientType:
@@ -385,6 +427,8 @@ class SerialManager:
 
     def status(self) -> dict[str, Any]:
         profile = get_profile(self.device_model or self.cfg.device_model)
+        live_io = self.is_connected and not self.simulator
+        tx_seq, rx_seq = self._io_activity.snapshot() if live_io else (0, 0)
         return {
             "connected": self.is_connected,
             "port": self.connected_port,
@@ -396,6 +440,8 @@ class SerialManager:
             "last_error": self.last_error,
             "baudrate": profile.baudrate if profile.protocol == "alc7000_rs232" else self.cfg.baudrate,
             "channel_count": profile.channel_count,
+            "tx_seq": tx_seq,
+            "rx_seq": rx_seq,
         }
 
     def with_client(self):
