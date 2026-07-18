@@ -99,12 +99,12 @@ Debian/Ubuntu packages before the first local install:
 
 ```bash
 sudo apt update
-sudo apt install -y python3 python3-venv python3-pip
+sudo apt install -y python3 python3-venv python3-pip npm
 # real hardware (log out and back in afterwards):
 sudo usermod -aG dialout $USER
 ```
 
-Node.js 20+ (npm) is also required to build the frontend — install via NodeSource, nvm, or your distro packages.
+`npm` pulls in Node.js. For a newer Node than the distro ships, use NodeSource or nvm (20+ recommended).
 
 ### Local (venv + `run.sh`)
 

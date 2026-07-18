@@ -19,7 +19,7 @@ Goals:
 Steps:
 1. If the repo is not already present, clone https://github.com/oe3gwu/ELV-ALC-Dashboard.git and cd into it. If I already have a checkout, use that directory.
 2. Verify prerequisites: Python 3.11+ with venv (`python3-venv` on Debian/Ubuntu), Node.js/npm 20+, rsync, and sudo/root.
-   On Debian/Ubuntu if missing: `sudo apt install -y python3 python3-venv python3-pip rsync`
+   On Debian/Ubuntu if missing: `sudo apt install -y python3 python3-venv python3-pip npm rsync`
 3. From the repository root, run:
    sudo ./scripts/install-systemd.sh
 4. Confirm success:

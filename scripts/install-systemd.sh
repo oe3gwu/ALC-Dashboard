@@ -60,7 +60,7 @@ INVOKER_HOME="${SUDO_USER:+$(getent passwd "$SUDO_USER" | cut -d: -f6)}"
 INVOKER_HOME="${INVOKER_HOME:-$HOME}"
 export PATH="${INVOKER_HOME}/.local/node/bin:/usr/local/bin:$PATH"
 if ! command -v npm &>/dev/null; then
-  echo "Fehler: npm nicht gefunden. Node.js 20+ installieren und erneut ausführen."
+  echo "Fehler: npm nicht gefunden. Auf Debian/Ubuntu: sudo apt install -y npm"
   exit 1
 fi
 (
