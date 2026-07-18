@@ -1,0 +1,734 @@
+from __future__ import annotations
+
+import asyncio
+import json
+import logging
+from contextlib import asynccontextmanager
+from pathlib import Path
+from typing import Any
+
+from fastapi import FastAPI, File, HTTPException, Request, UploadFile, WebSocket, WebSocketDisconnect
+from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import FileResponse, Response
+from fastapi.staticfiles import StaticFiles
+
+from app.api.schemas import (
+    ActivityRequest,
+    BatteryDbIn,
+    ChannelParamsIn,
+    ConfigUpdate,
+    ConnectRequest,
+    DeviceGIn,
+    DeviceHIn,
+    DeviceJIn,
+    StartProcessRequest,
+    channel_from_in,
+    diff_params,
+)
+from app.config import ROOT, load_config, save_config
+from app.devices.profiles import get_profile, list_devices
+from app.protocol.constants import BATTERY_TYPES, PROGRAMS
+from app.protocol.models import (
+    DeviceParamsG,
+    DeviceParamsH,
+    DeviceParamsJ,
+)
+from app.serial_manager import SerialManager
+from app.services.battery_db_archive import SLOT_COUNT, BatteryDbArchive, entry_to_model
+from app.services.firmware_guide import build_firmware_guide
+from app.services.logger_archive import LoggerArchive
+from app.services.pdf_export import build_logger_pdf, write_pdf
+
+logging.basicConfig(level=logging.INFO)
+log = logging.getLogger("elv-alc")
+
+cfg = load_config()
+manager = SerialManager(cfg)
+archive = LoggerArchive(cfg.data_path)
+battery_db = BatteryDbArchive(cfg.data_path)
+
+
+def current_profile():
+    return get_profile(cfg.device_model)
+
+
+def channel_count() -> int:
+    return current_profile().channel_count
+
+
+def require_feature(name: str) -> None:
+    feats = current_profile().features
+    if not getattr(feats, name, False):
+        raise HTTPException(400, f"Funktion „{name}“ für {current_profile().label} nicht verfügbar")
+
+
+def valid_channel(channel: int) -> None:
+    n = channel_count()
+    if channel < 0 or channel >= n:
+        raise HTTPException(400, f"Kanal 0–{n - 1}")
+
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    cfg.data_path.mkdir(parents=True, exist_ok=True)
+    (cfg.data_path / "logger").mkdir(parents=True, exist_ok=True)
+    if cfg.simulator or cfg.serial_port:
+        try:
+            manager.connect(port=cfg.serial_port or None, use_simulator=cfg.simulator)
+            log.info("Auto-connect: %s", manager.status())
+        except Exception as exc:
+            log.warning("Auto-connect fehlgeschlagen: %s", exc)
+    yield
+    manager.disconnect()
+
+
+app = FastAPI(title="ELV ALC Dashboard", version="1.0.0", lifespan=lifespan)
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
+
+
+def require_client():
+    if not manager.is_connected:
+        raise HTTPException(400, "Nicht mit dem ALC verbunden")
+    return manager.client
+
+
+# ——— Meta / connection ———
+
+
+@app.get("/api/meta")
+def meta() -> dict[str, Any]:
+    profile = current_profile()
+    allowed_bt = {k: v for k, v in BATTERY_TYPES.items() if k in profile.battery_type_ids or k == 0xFF}
+    allowed_prog = {k: v for k, v in PROGRAMS.items() if k in profile.program_ids}
+    caps = {
+        "channel_count": profile.channel_count,
+        "battery_type_ids": list(profile.battery_type_ids),
+        "program_ids": list(profile.program_ids),
+        "logger": profile.features.logger,
+        "battery_db": profile.features.battery_db,
+        "chemistry_params": profile.features.chemistry_params,
+        "chemistry_hj": profile.features.chemistry_hj,
+        "full_factor": profile.features.full_factor,
+        "activator": profile.features.activator,
+        "activator_channel": profile.features.activator_channel,
+        "ri_usb": profile.features.ri_usb,
+        "firmware_guided": profile.features.firmware_guided,
+        "protocol": profile.protocol,
+        "simulator_label": profile.simulator_label,
+    }
+    return {
+        "name": "ELV ALC Dashboard",
+        "version": "1.0.0",
+        "device_model": profile.id,
+        "devices": list_devices(),
+        "battery_types": allowed_bt,
+        "programs": allowed_prog,
+        "battery_types_all": BATTERY_TYPES,
+        "programs_all": PROGRAMS,
+        "capabilities": caps,
+        "config": {
+            "serial_port": cfg.serial_port,
+            "device_model": cfg.device_model,
+            "simulator": cfg.simulator,
+            "mock": cfg.simulator,
+            "poll_interval": cfg.poll_interval,
+            "host": cfg.host,
+            "port": cfg.port,
+        },
+        "features": {
+            "ri_measurement": False,
+            "ri_note": "Innenwiderstandsmessung nur am Gerät (kein USB-Befehl).",
+            "firmware_update": "guided" if profile.features.firmware_guided else "none",
+            **caps,
+        },
+    }
+
+
+@app.get("/api/ports")
+def ports() -> dict[str, Any]:
+    return {"ports": [p.to_dict() for p in manager.list_ports()]}
+
+
+@app.get("/api/connection")
+def connection() -> dict[str, Any]:
+    return manager.status()
+
+
+@app.post("/api/connection/connect")
+def connect(body: ConnectRequest) -> dict[str, Any]:
+    try:
+        sim = body.simulator if body.simulator is not None else body.mock
+        return manager.connect(port=body.port, use_simulator=sim, use_mock=body.mock)
+    except Exception as exc:
+        raise HTTPException(400, str(exc)) from exc
+
+
+@app.post("/api/connection/disconnect")
+def disconnect() -> dict[str, Any]:
+    manager.disconnect()
+    return manager.status()
+
+
+@app.get("/api/config")
+def get_config() -> dict[str, Any]:
+    return cfg.dump_for_yaml() | {"mock": cfg.simulator}
+
+
+@app.put("/api/config")
+def update_config(body: ConfigUpdate) -> dict[str, Any]:
+    global cfg
+    old_model = cfg.device_model
+    old_sim = cfg.simulator
+    old_port = (cfg.serial_port or "").strip()
+    data = cfg.dump_for_yaml()
+    updates = body.model_dump(exclude_none=True)
+    if "mock" in updates and "simulator" not in updates:
+        updates["simulator"] = bool(updates.pop("mock"))
+    else:
+        updates.pop("mock", None)
+    if "device_model" in updates:
+        prof = get_profile(updates["device_model"])
+        if not prof.enabled:
+            raise HTTPException(400, f"Gerät {prof.label} ist nicht wählbar ({prof.disabled_reason})")
+    # Simulator nur ohne Port
+    serial = updates.get("serial_port", data.get("serial_port", ""))
+    if serial and str(serial).strip():
+        updates["simulator"] = False
+    data.update(updates)
+    data.pop("mock", None)
+    cfg = type(cfg).model_validate(data)
+    save_config(cfg)
+    manager.cfg = cfg
+
+    new_port = (cfg.serial_port or "").strip()
+    conn_changed = (
+        cfg.device_model != old_model
+        or cfg.simulator != old_sim
+        or new_port != old_port
+    )
+    reconnect_status: dict[str, Any] | None = None
+    if conn_changed:
+        try:
+            if cfg.simulator:
+                reconnect_status = manager.connect(port="", use_simulator=True)
+            elif new_port:
+                reconnect_status = manager.connect(port=new_port, use_simulator=False)
+            elif manager.is_connected:
+                # Modell gewechselt, kein Simulator/Port → trennen
+                manager.disconnect()
+                reconnect_status = manager.status()
+        except Exception as exc:
+            log.warning("Reconnect nach Config-Änderung fehlgeschlagen: %s", exc)
+            manager.last_error = str(exc)
+            reconnect_status = manager.status()
+
+    out = cfg.dump_for_yaml() | {"mock": cfg.simulator}
+    if reconnect_status is not None:
+        out["connection"] = reconnect_status
+    return out
+
+
+# ——— Live / channels ———
+
+
+@app.get("/api/live")
+def live() -> dict[str, Any]:
+    client = require_client()
+    n = channel_count()
+    with manager.with_client():
+        channels = [client.get_channel_params(i).to_dict() for i in range(n)]
+        measurements = [m.to_dict() for m in client.get_measurements()[:n]]
+        temps = client.get_temperatures().to_dict()
+    return {"channels": channels, "measurements": measurements, "temperatures": temps}
+
+
+@app.get("/api/channels/{channel}")
+def get_channel(channel: int) -> dict[str, Any]:
+    valid_channel(channel)
+    client = require_client()
+    with manager.with_client():
+        return client.get_channel_params(channel).to_dict()
+
+
+@app.put("/api/channels/{channel}")
+def set_channel(channel: int, body: ChannelParamsIn) -> dict[str, Any]:
+    if channel != body.channel:
+        body.channel = channel
+    client = require_client()
+    params = channel_from_in(body)
+    with manager.with_client():
+        echoed = client.set_channel_params(params)
+    req = params.to_dict()
+    echo = echoed.to_dict()
+    return {"params": echo, "corrections": diff_params(req, echo)}
+
+
+@app.post("/api/channels/{channel}/activity")
+def activity(channel: int, body: ActivityRequest) -> dict[str, Any]:
+    body.channel = channel
+    client = require_client()
+    with manager.with_client():
+        state = client.set_activity(channel, stop=body.stop)
+    return state.to_dict()
+
+
+@app.post("/api/process/preview")
+def process_preview(body: StartProcessRequest) -> dict[str, Any]:
+    """Set params without starting; return corrections (CP security dialog)."""
+    client = require_client()
+    params = channel_from_in(body.params)
+    valid_channel(params.channel)
+    prof = current_profile()
+    if getattr(params, "activator", False) and (
+        not prof.features.activator or params.channel != prof.features.activator_channel
+    ):
+        raise HTTPException(400, "Aktivator für diesen Kanal/dieses Gerät nicht verfügbar")
+    with manager.with_client():
+        current = client.get_channel_params(params.channel)
+        if current.stage_name != "Leerlauf":
+            raise HTTPException(400, "Kanal ist nicht im Leerlauf")
+        echoed = client.set_channel_params(params)
+    req = params.to_dict()
+    echo = echoed.to_dict()
+    return {
+        "requested": req,
+        "device": echo,
+        "corrections": diff_params(req, echo),
+        "ready": True,
+    }
+
+
+@app.post("/api/process/start")
+def process_start(body: StartProcessRequest) -> dict[str, Any]:
+    if not body.confirm:
+        raise HTTPException(400, "Bestätigung erforderlich (confirm=true)")
+    client = require_client()
+    params = channel_from_in(body.params)
+    valid_channel(params.channel)
+    prof = current_profile()
+    if getattr(params, "activator", False) and (
+        not prof.features.activator or params.channel != prof.features.activator_channel
+    ):
+        raise HTTPException(400, "Aktivator für diesen Kanal/dieses Gerät nicht verfügbar")
+    with manager.with_client():
+        echoed = client.set_channel_params(params)
+        state = client.set_activity(params.channel, stop=False)
+    return {
+        "params": echoed.to_dict(),
+        "activity": state.to_dict(),
+        "corrections": diff_params(params.to_dict(), echoed.to_dict()),
+    }
+
+
+# ——— Battery database (local presets + ALC sync) ———
+
+
+@app.get("/api/battery-db")
+def list_battery_db() -> dict[str, Any]:
+    require_feature("battery_db")
+    return {"entries": battery_db.load(), "source": "local"}
+
+
+@app.post("/api/battery-db/import-from-device")
+def import_battery_db_from_device() -> dict[str, Any]:
+    require_feature("battery_db")
+    client = require_client()
+    entries: list[dict[str, Any]] = []
+    errors: list[dict[str, Any]] = []
+    with manager.with_client():
+        for slot in range(SLOT_COUNT):
+            try:
+                entries.append(client.get_battery_db(slot).to_dict())
+            except Exception as exc:
+                errors.append({"slot": slot, "error": str(exc)})
+                entries.append({"slot": slot, "name": ""})
+    saved = battery_db.replace_all(entries)
+    return {
+        "entries": saved,
+        "imported": SLOT_COUNT - len(errors),
+        "total": SLOT_COUNT,
+        "errors": errors,
+    }
+
+
+@app.post("/api/battery-db/export-to-device")
+def export_battery_db_to_device() -> dict[str, Any]:
+    require_feature("battery_db")
+    client = require_client()
+    local = battery_db.load()
+    written = 0
+    errors: list[dict[str, Any]] = []
+    with manager.with_client():
+        for slot in range(SLOT_COUNT):
+            try:
+                entry = entry_to_model(local[slot])
+                client.set_battery_db(entry)
+                written += 1
+            except Exception as exc:
+                errors.append({"slot": slot, "error": str(exc)})
+    if written == 0 and errors:
+        raise HTTPException(500, f"Export fehlgeschlagen: {errors[0]['error']}")
+    return {"written": written, "total": SLOT_COUNT, "errors": errors}
+
+
+@app.get("/api/battery-db/file")
+def download_battery_db_file() -> Response:
+    data = battery_db.to_json_bytes()
+    return Response(
+        content=data,
+        media_type="application/json",
+        headers={"Content-Disposition": 'attachment; filename="battery-db.json"'},
+    )
+
+
+@app.post("/api/battery-db/file")
+async def upload_battery_db_file(
+    request: Request,
+    file: UploadFile | None = File(None),
+) -> dict[str, Any]:
+    payload: Any
+    if file is not None and file.filename:
+        raw = await file.read()
+        try:
+            payload = json.loads(raw.decode("utf-8"))
+        except Exception as exc:
+            raise HTTPException(400, f"Ungültige JSON-Datei: {exc}") from exc
+    else:
+        try:
+            payload = await request.json()
+        except Exception as exc:
+            raise HTTPException(400, f"JSON-Datei oder Body erwartet: {exc}") from exc
+
+    raw_entries = payload.get("entries") if isinstance(payload, dict) else payload
+    if not isinstance(raw_entries, list):
+        raise HTTPException(400, "Erwartet { entries: [...] }")
+    try:
+        saved = battery_db.replace_all(raw_entries)
+    except ValueError as exc:
+        raise HTTPException(400, str(exc)) from exc
+    return {"entries": saved, "source": "file"}
+
+
+@app.get("/api/battery-db/{slot}")
+def get_battery_db(slot: int) -> dict[str, Any]:
+    if slot < 0 or slot >= SLOT_COUNT:
+        raise HTTPException(400, "Slot 0–39")
+    return battery_db.get(slot)
+
+
+@app.put("/api/battery-db/{slot}")
+def put_battery_db(slot: int, body: BatteryDbIn) -> dict[str, Any]:
+    if slot < 0 or slot >= SLOT_COUNT:
+        raise HTTPException(400, "Slot 0–39")
+    body.slot = slot
+    return battery_db.put(slot, body.model_dump())
+
+
+# ——— Chemistry / device params ———
+
+
+@app.get("/api/device/params")
+def get_device_params() -> dict[str, Any]:
+    require_feature("chemistry_params")
+    client = require_client()
+    with manager.with_client():
+        g = client.get_device_g().to_dict()
+        h = client.get_device_h().to_dict()
+        j = client.get_device_j().to_dict()
+    return {"g": g, "h": h, "j": j}
+
+
+@app.put("/api/device/params/g")
+def put_g(body: DeviceGIn) -> dict[str, Any]:
+    require_feature("chemistry_params")
+    client = require_client()
+    with manager.with_client():
+        return client.set_device_g(DeviceParamsG(**body.model_dump())).to_dict()
+
+
+@app.put("/api/device/params/h")
+def put_h(body: DeviceHIn) -> dict[str, Any]:
+    require_feature("chemistry_params")
+    client = require_client()
+    with manager.with_client():
+        cur = client.get_device_h()
+        for k, v in body.model_dump().items():
+            setattr(cur, k, v)
+        return client.set_device_h(cur).to_dict()
+
+
+@app.put("/api/device/params/j")
+def put_j(body: DeviceJIn) -> dict[str, Any]:
+    require_feature("chemistry_params")
+    client = require_client()
+    flags = (body.illumination & 0x07)
+    if body.alarm_beep:
+        flags |= 0x08
+    if body.button_beep:
+        flags |= 0x10
+    params = DeviceParamsJ(
+        discharge_LiFePO4_mV=body.discharge_LiFePO4_mV,
+        charge_LiFePO4_mV=body.charge_LiFePO4_mV,
+        maintain_LiFePO4_mV=body.maintain_LiFePO4_mV,
+        setup_flags=flags,
+        contrast=body.contrast,
+    )
+    with manager.with_client():
+        return client.set_device_j(params).to_dict()
+
+
+@app.post("/api/device/params/restore")
+def restore_defaults() -> dict[str, Any]:
+    require_feature("chemistry_params")
+    client = require_client()
+    with manager.with_client():
+        g = client.set_device_g(DeviceParamsG())
+        h = client.set_device_h(DeviceParamsH())
+        j = client.set_device_j(DeviceParamsJ())
+    return {"g": g.to_dict(), "h": h.to_dict(), "j": j.to_dict()}
+
+
+@app.get("/api/device/info")
+def device_info() -> dict[str, Any]:
+    client = require_client()
+    st = manager.status()
+    profile = get_profile(st.get("device_model") or cfg.device_model)
+    with manager.with_client():
+        temps = client.get_temperatures().to_dict()
+    info: dict[str, Any] = {
+        "connected": True,
+        "port": manager.connected_port,
+        "simulator": manager.simulator,
+        "mock": manager.simulator,
+        "device_model": profile.id,
+        "device_label": profile.label,
+        "status_label": st.get("status_label"),
+        "temperatures": temps,
+        "channel_count": profile.channel_count,
+    }
+    if profile.features.chemistry_params:
+        try:
+            with manager.with_client():
+                j = client.get_device_j()
+            info["contrast"] = j.contrast
+            info["illumination"] = j.illumination
+        except Exception:
+            pass
+    if manager.simulator and hasattr(manager._transport, "serial_number"):
+        info["serial_number"] = manager._transport.serial_number  # type: ignore[union-attr]
+        info["firmware"] = getattr(manager._transport, "firmware", None)  # type: ignore[union-attr]
+    elif profile.protocol == "alc7000_rs232" and not manager.simulator:
+        try:
+            with manager.with_client():
+                ident = getattr(client, "identify", None)
+                if callable(ident):
+                    info["identity"] = ident()
+        except Exception:
+            info["serial_number"] = None
+            info["firmware"] = None
+    else:
+        info["serial_number"] = None
+        info["firmware"] = None
+        info["note"] = "Seriennummer/FW werden vom Gerät nicht über das Standardprotokoll geliefert."
+    return info
+
+
+# ——— Logger ———
+
+
+@app.get("/api/logger/{channel}")
+def read_logger(channel: int, save: bool = True) -> dict[str, Any]:
+    require_feature("logger")
+    valid_channel(channel)
+    client = require_client()
+    with manager.with_client():
+        data = client.read_logger(channel)
+    result: dict[str, Any] = {"logger": data.to_dict()}
+    if save:
+        meta = archive.save(data)
+        result["archive"] = meta
+        pdf_path = cfg.data_path / "logger" / f"{meta['id']}.pdf"
+        write_pdf(data.to_dict() | {"saved_at": meta["saved_at"]}, pdf_path)
+        result["archive"]["pdf"] = pdf_path.name
+    return result
+
+
+@app.delete("/api/logger/{channel}")
+def clear_logger(channel: int) -> dict[str, Any]:
+    require_feature("logger")
+    valid_channel(channel)
+    client = require_client()
+    with manager.with_client():
+        client.clear_logger(channel)
+    return {"ok": True, "channel": channel}
+
+
+@app.get("/api/archive")
+def list_archive() -> dict[str, Any]:
+    return {"sessions": archive.list_sessions()}
+
+
+@app.delete("/api/archive")
+def delete_all_archive() -> dict[str, Any]:
+    deleted = archive.delete_all()
+    return {"ok": True, "deleted": deleted}
+
+
+@app.get("/api/archive/{session_id}")
+def get_archive(session_id: str) -> dict[str, Any]:
+    try:
+        return archive.load(session_id)
+    except ValueError as exc:
+        raise HTTPException(400, "Ungültige Session-ID") from exc
+    except FileNotFoundError as exc:
+        raise HTTPException(404, "Session nicht gefunden") from exc
+
+
+@app.delete("/api/archive/{session_id}")
+def delete_archive(session_id: str) -> dict[str, Any]:
+    try:
+        archive.delete(session_id)
+    except ValueError as exc:
+        raise HTTPException(400, "Ungültige Session-ID") from exc
+    except FileNotFoundError as exc:
+        raise HTTPException(404, "Session nicht gefunden") from exc
+    return {"ok": True, "id": session_id}
+
+
+@app.get("/api/archive/{session_id}/export/{fmt}")
+def export_archive(session_id: str, fmt: str):
+    try:
+        if fmt == "pdf":
+            session = archive.load(session_id)
+            pdf = build_logger_pdf(session)
+            return Response(
+                pdf,
+                media_type="application/pdf",
+                headers={"Content-Disposition": f'inline; filename="{session_id}.pdf"'},
+            )
+        path = archive.path_for(session_id, fmt)
+        media = "application/json" if fmt == "json" else "text/csv"
+        return FileResponse(path, media_type=media, filename=path.name)
+    except ValueError as exc:
+        raise HTTPException(400, "Ungültige Session-ID") from exc
+    except FileNotFoundError as exc:
+        raise HTTPException(404, "Export nicht gefunden") from exc
+
+
+# ——— Firmware guide ———
+
+
+@app.get("/api/firmware/guide")
+def firmware_guide() -> dict[str, Any]:
+    """Read-only guided instructions — never flashes firmware from this app."""
+    return build_firmware_guide(current_profile().id)
+
+
+# ——— WebSocket live ———
+
+
+def _ws_disconnected(exc: BaseException) -> bool:
+    """True when the peer is gone — stop the live loop (do not retry send)."""
+    if isinstance(exc, WebSocketDisconnect):
+        return True
+    if isinstance(exc, (RuntimeError, ConnectionError, OSError, asyncio.CancelledError)):
+        return True
+    # Starlette / uvicorn may wrap transport errors
+    name = type(exc).__name__
+    return name in {"ClientDisconnected", "WebSocketException", "ConnectionClosedError", "ConnectionClosedOK"}
+
+
+@app.websocket("/ws/live")
+async def ws_live(ws: WebSocket) -> None:
+    await ws.accept()
+    try:
+        while True:
+            try:
+                if manager.is_connected:
+                    client = manager.client
+                    n = channel_count()
+                    with manager.with_client():
+                        channels = [client.get_channel_params(i).to_dict() for i in range(n)]
+                        measurements = [m.to_dict() for m in client.get_measurements()[:n]]
+                        temps = client.get_temperatures().to_dict()
+                    payload: dict[str, Any] = {
+                        "type": "live",
+                        "channels": channels,
+                        "measurements": measurements,
+                        "temperatures": temps,
+                        "connection": manager.status(),
+                    }
+                else:
+                    payload = {
+                        "type": "live",
+                        "connection": manager.status(),
+                        "channels": [],
+                        "measurements": [],
+                        "temperatures": {},
+                    }
+            except Exception as exc:
+                if _ws_disconnected(exc):
+                    return
+                payload = {"type": "error", "message": str(exc)}
+
+            try:
+                await ws.send_json(payload)
+            except Exception:
+                # Peer gone / half-closed — exit (avoids asyncio socket.send spam)
+                return
+
+            await asyncio.sleep(cfg.poll_interval)
+    except WebSocketDisconnect:
+        return
+    except Exception as exc:
+        if not _ws_disconnected(exc):
+            log.debug("ws/live ended: %s", exc)
+        return
+    finally:
+        try:
+            await ws.close()
+        except Exception:
+            pass
+
+
+# ——— Static frontend (SPA: F5 on /start etc. must serve index.html) ———
+
+FRONTEND_DIST = ROOT / "frontend" / "dist"
+if FRONTEND_DIST.exists():
+    _assets = FRONTEND_DIST / "assets"
+    if _assets.is_dir():
+        app.mount("/assets", StaticFiles(directory=str(_assets)), name="assets")
+
+    @app.get("/{full_path:path}")
+    async def spa_fallback(full_path: str) -> FileResponse:
+        """Serve built files, otherwise index.html for client-side routes."""
+        if full_path:
+            candidate = (FRONTEND_DIST / full_path).resolve()
+            try:
+                candidate.relative_to(FRONTEND_DIST.resolve())
+            except ValueError:
+                return FileResponse(FRONTEND_DIST / "index.html")
+            if candidate.is_file():
+                return FileResponse(candidate)
+        return FileResponse(FRONTEND_DIST / "index.html")
+
+
+def run() -> None:
+    import uvicorn
+
+    uvicorn.run(
+        "app.main:app",
+        host=cfg.host,
+        port=cfg.port,
+        reload=False,
+    )
+
+
+if __name__ == "__main__":
+    run()

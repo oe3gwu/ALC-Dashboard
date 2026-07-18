@@ -1,0 +1,22 @@
+[Unit]
+Description=ELV ALC Dashboard (ALC 8500-2)
+Documentation=https://github.com/oe3gwu/ELV-ALC-Dashboard
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=elv-alc
+Group=dialout
+WorkingDirectory=/opt/alc
+Environment=PYTHONPATH=/opt/alc/backend
+Environment=PATH=/opt/alc/.venv/bin:/usr/local/bin:/usr/bin
+ExecStart=/opt/alc/.venv/bin/uvicorn app.main:app --host 0.0.0.0 --port 8080
+Restart=on-failure
+RestartSec=5
+
+NoNewPrivileges=true
+PrivateTmp=true
+
+[Install]
+WantedBy=multi-user.target

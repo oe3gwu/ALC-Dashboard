@@ -1,0 +1,30 @@
+# ELV / Voltcraft ALC USB serial — stable device names + dialout access
+#
+# Common symlink: /dev/elv-alc
+# Model aliases:  /dev/elv-alc3000, elv-alc5000, elv-alc8xxx, elv-alc8500
+#
+# ALC 7000 is classic RS-232 (no unique ELV USB ID). Use the adapter’s
+# /dev/ttyUSB* / /dev/ttyACM* or a vendor-specific adapter rule.
+#
+# IDs from Linux ftdi_sio / cp210x tables and Windows INF (VID 18ef = ELV).
+
+# ALC 8500 Expert — FTDI custom PID (kernel: FTDI_ELV_ALC8500_PID)
+SUBSYSTEM=="tty", ATTRS{idVendor}=="0403", ATTRS{idProduct}=="f06e", \
+  SYMLINK+="elv-alc elv-alc8500", MODE="0660", GROUP="dialout"
+
+# ALC 8xxx / 8500 Expert — CP210x with ELV VID (kernel: 18ef:e030)
+SUBSYSTEM=="tty", ATTRS{idVendor}=="18ef", ATTRS{idProduct}=="e030", \
+  SYMLINK+="elv-alc elv-alc8xxx elv-alc8500", MODE="0660", GROUP="dialout"
+
+# ALC 3000 PC — ELV VID (Windows: VID_18EF&PID_E00E)
+SUBSYSTEM=="tty", ATTRS{idVendor}=="18ef", ATTRS{idProduct}=="e00e", \
+  SYMLINK+="elv-alc elv-alc3000", MODE="0660", GROUP="dialout"
+
+# ALC 5000 Mobile / 5xxx — ELV VID (Windows: VID_18EF&PID_E003)
+SUBSYSTEM=="tty", ATTRS{idVendor}=="18ef", ATTRS{idProduct}=="e003", \
+  SYMLINK+="elv-alc elv-alc5000", MODE="0660", GROUP="dialout"
+
+# Optional fallback: generic Silicon Labs CP2102 (10c4:ea60).
+# Matches many non-ALC USB-serial adapters — leave commented unless needed.
+# SUBSYSTEM=="tty", ATTRS{idVendor}=="10c4", ATTRS{idProduct}=="ea60", \
+#   SYMLINK+="elv-alc", MODE="0660", GROUP="dialout"

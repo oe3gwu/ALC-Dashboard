@@ -1,0 +1,14 @@
+.venv/
+__pycache__/
+*.pyc
+.pytest_cache/
+node_modules/
+frontend/dist/
+data/logger/*
+!data/logger/.gitkeep
+data/battery-db.json
+.DS_Store
+*.log
+.env
+.idea/
+.vscode/
