@@ -45,10 +45,6 @@ mkdir -p "$DEST/data/logger"
 touch "$DEST/data/logger/.gitkeep"
 
 echo "==> Python-venv + Dependencies…"
-if ! python3 -c "import venv" &>/dev/null; then
-  echo "Fehler: Python-venv fehlt. Auf Debian/Ubuntu: sudo apt install -y python3-venv"
-  exit 1
-fi
 if [[ ! -x "$DEST/.venv/bin/python" ]]; then
   python3 -m venv "$DEST/.venv"
 fi
@@ -60,7 +56,7 @@ INVOKER_HOME="${SUDO_USER:+$(getent passwd "$SUDO_USER" | cut -d: -f6)}"
 INVOKER_HOME="${INVOKER_HOME:-$HOME}"
 export PATH="${INVOKER_HOME}/.local/node/bin:/usr/local/bin:$PATH"
 if ! command -v npm &>/dev/null; then
-  echo "Fehler: npm nicht gefunden. Auf Debian/Ubuntu: sudo apt install -y npm"
+  echo "Fehler: npm nicht gefunden. Node.js 20+ installieren und erneut ausführen."
   exit 1
 fi
 (

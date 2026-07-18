@@ -1,6 +1,5 @@
 fastapi>=0.115.0
-# Plain uvicorn (not [standard]) — avoids compiling uvloop/httptools on minimal hosts
-uvicorn>=0.32.0
+uvicorn[standard]>=0.32.0
 pyserial>=3.5
 pyyaml>=6.0
 reportlab>=4.0

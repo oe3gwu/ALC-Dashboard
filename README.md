@@ -92,19 +92,12 @@ Build and run the container from the repo (`docker compose up`).
 
 | Path | Needs |
 |------|--------|
-| Local / systemd | Python 3.11+ with `venv`, Node.js 20+, `dialout` for real hardware |
+| Local / systemd | Python 3.11+, Node.js 20+, `dialout` for real hardware |
 | Docker | Docker Engine + Compose plugin (Linux host for USB/serial) |
 
-Debian/Ubuntu packages before the first local install:
-
 ```bash
-sudo apt update
-sudo apt install -y python3 python3-venv python3-pip npm
-# real hardware (log out and back in afterwards):
-sudo usermod -aG dialout $USER
+sudo usermod -aG dialout $USER   # real hardware; log out and back in afterwards
 ```
-
-`npm` pulls in Node.js. For a newer Node than the distro ships, use NodeSource or nvm (20+ recommended).
 
 ### Local (venv + `run.sh`)
 
@@ -114,7 +107,6 @@ cd ELV-ALC-Dashboard
 
 python3 -m venv .venv
 source .venv/bin/activate
-pip install -U pip
 pip install -r backend/requirements.txt
 
 cd frontend && npm install && npm run build && cd ..
