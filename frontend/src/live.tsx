@@ -1,5 +1,6 @@
-import { createContext, useContext, useEffect, useMemo, useState, type ReactNode } from 'react'
+import { createContext, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
 import { api, liveSocket, type ChannelParams, type LivePayload, type Measurement } from './api'
+import { updateLiveSnapshot } from './liveSeries'
 
 type LiveCtx = {
   channels: ChannelParams[]
@@ -16,12 +17,23 @@ export function LiveProvider({ children }: { children: ReactNode }) {
   const [measurements, setMeasurements] = useState<Measurement[]>([])
   const [temperatures, setTemperatures] = useState<Record<string, number | null>>({})
   const [connection, setConnection] = useState<LivePayload['connection']>()
+  const channelsRef = useRef(channels)
+  const measurementsRef = useRef(measurements)
 
   const apply = (data: LivePayload) => {
-    if (data.channels) setChannels(data.channels)
-    if (data.measurements) setMeasurements(data.measurements)
+    if (data.channels) {
+      channelsRef.current = data.channels
+      setChannels(data.channels)
+    }
+    if (data.measurements) {
+      measurementsRef.current = data.measurements
+      setMeasurements(data.measurements)
+    }
     if (data.temperatures) setTemperatures(data.temperatures)
     if (data.connection) setConnection(data.connection)
+    if (data.channels || data.measurements) {
+      updateLiveSnapshot(channelsRef.current, measurementsRef.current)
+    }
   }
 
   const refresh = async () => {
@@ -73,6 +85,8 @@ export function LiveProvider({ children }: { children: ReactNode }) {
     const onPageHide = () => {
       closed = true
       drop()
+      // Ensure last samples are in sessionStorage before unload / F5
+      updateLiveSnapshot(channelsRef.current, measurementsRef.current)
     }
 
     refresh()

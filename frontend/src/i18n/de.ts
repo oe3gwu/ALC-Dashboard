@@ -201,7 +201,6 @@ export const de = {
   'dev.device': 'Gerät:',
   'dev.serial': 'Seriennummer:',
   'dev.firmware': 'Firmware:',
-  'dev.temps': 'Temperaturen: Kühlkörper {heatsink} °C · Netzteil {psu} °C · Akku {battery} °C',
   'dev.riNote':
     'Hinweis: Die Innenwiderstandsmessung (Ri) ist nur am Gerät mit Vierleiter-Kabel verfügbar — kein USB-Befehl in der Protokolldokumentation.',
 

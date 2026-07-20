@@ -20,7 +20,6 @@ export function DeviceInfo() {
       })
   }, [connection?.device_model, connection?.simulator, connection?.port, connection?.connected])
 
-  const temps = info?.temperatures as { heatsink_C?: number; psu_C?: number; battery_C?: number } | undefined
   const isSim = Boolean(info?.simulator || info?.mock)
 
   return (
@@ -45,13 +44,6 @@ export function DeviceInfo() {
             </div>
             <div>
               {t('dev.firmware')} <strong>{String(info.firmware ?? '—')}</strong>
-            </div>
-            <div>
-              {t('dev.temps', {
-                heatsink: temps?.heatsink_C ?? '—',
-                psu: temps?.psu_C ?? '—',
-                battery: temps?.battery_C ?? '—',
-              })}
             </div>
             {info.note && <div className="toast">{String(info.note)}</div>}
             <div className="toast">{t('dev.riNote')}</div>

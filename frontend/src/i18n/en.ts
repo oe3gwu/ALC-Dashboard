@@ -203,7 +203,6 @@ export const en: Record<MessageKey, string> = {
   'dev.device': 'Device:',
   'dev.serial': 'Serial number:',
   'dev.firmware': 'Firmware:',
-  'dev.temps': 'Temperatures: heatsink {heatsink} °C · PSU {psu} °C · battery {battery} °C',
   'dev.riNote':
     'Note: Internal resistance (Ri) measurement is only available on the device with a four-wire cable — no USB command in the protocol docs.',
 
