@@ -3,10 +3,41 @@ import { api } from '../api'
 import { useCapabilities } from '../capabilities'
 import { useLive } from '../live'
 import { useLocale } from '../locale'
+import type { MessageKey } from '../i18n'
+
+type DeviceSetup = {
+  illumination: number
+  contrast: number
+  alarm_beep: boolean
+  button_beep: boolean
+}
+
+const DEFAULT_SETUP: DeviceSetup = {
+  illumination: 1,
+  contrast: 8,
+  alarm_beep: false,
+  button_beep: false,
+}
+
+/** ELV j-frame backlight modes (not brightness levels). */
+const ILLUM_MODE_KEYS: MessageKey[] = [
+  'set.illumOff',
+  'set.illumOn',
+  'set.illum1m',
+  'set.illum5m',
+  'set.illum10m',
+  'set.illum30m',
+  'set.illum60m',
+]
+
+function clamp(n: number, lo: number, hi: number): number {
+  if (!Number.isFinite(n)) return lo
+  return Math.max(lo, Math.min(hi, Math.round(n)))
+}
 
 export function Settings() {
   const { t } = useLocale()
-  const { devices, deviceModel, refresh: refreshCaps } = useCapabilities()
+  const { devices, deviceModel, capabilities, refresh: refreshCaps } = useCapabilities()
   const { refresh: refreshLive } = useLive()
   const [model, setModel] = useState(deviceModel)
   const [serial, setSerial] = useState('')
@@ -15,8 +46,13 @@ export function Settings() {
   const [msg, setMsg] = useState('')
   const [err, setErr] = useState('')
   const [ports, setPorts] = useState<{ device: string; description: string; vid: string | null; pid: string | null }[]>([])
+  const [setup, setSetup] = useState<DeviceSetup>({ ...DEFAULT_SETUP })
+  const [setupBusy, setSetupBusy] = useState(false)
+  const [setupMsg, setSetupMsg] = useState('')
+  const [setupErr, setSetupErr] = useState('')
 
   const portSet = Boolean(serial.trim())
+  const showDeviceDisplay = capabilities.chemistry_hj
 
   useEffect(() => {
     api.meta().then((m) => {
@@ -38,6 +74,23 @@ export function Settings() {
   useEffect(() => {
     if (portSet && simulator) setSimulator(false)
   }, [portSet, simulator])
+
+  useEffect(() => {
+    if (!showDeviceDisplay) return
+    api
+      .deviceParams()
+      .then((res) => {
+        setSetup({
+          illumination: Number(res.j.illumination ?? 1),
+          contrast: Number(res.j.contrast ?? 8),
+          alarm_beep: Boolean(res.j.alarm_beep),
+          button_beep: Boolean(res.j.button_beep),
+        })
+      })
+      .catch(() => {
+        /* not connected yet */
+      })
+  }, [showDeviceDisplay])
 
   const applyFormConfig = async () => {
     const sim = portSet ? false : simulator
@@ -96,11 +149,57 @@ export function Settings() {
     }
   }
 
+  const readSetup = async () => {
+    setSetupErr('')
+    setSetupMsg('')
+    setSetupBusy(true)
+    try {
+      const res = await api.deviceParams()
+      setSetup({
+        illumination: Number(res.j.illumination ?? 1),
+        contrast: Number(res.j.contrast ?? 8),
+        alarm_beep: Boolean(res.j.alarm_beep),
+        button_beep: Boolean(res.j.button_beep),
+      })
+      setSetupMsg(t('set.setupReadOk'))
+    } catch (e) {
+      setSetupErr(String((e as Error).message || e))
+    } finally {
+      setSetupBusy(false)
+    }
+  }
+
+  const applySetup = async () => {
+    setSetupErr('')
+    setSetupMsg('')
+    setSetupBusy(true)
+    try {
+      // Preserve LiFe voltages that share the j frame.
+      const cur = await api.deviceParams()
+      await api.putJ({
+        discharge_LiFePO4_mV: cur.j.discharge_LiFePO4_mV,
+        charge_LiFePO4_mV: cur.j.charge_LiFePO4_mV,
+        maintain_LiFePO4_mV: cur.j.maintain_LiFePO4_mV,
+        illumination: clamp(setup.illumination, 0, 6),
+        contrast: clamp(setup.contrast, 0, 15),
+        alarm_beep: setup.alarm_beep,
+        button_beep: setup.button_beep,
+      })
+      setSetupMsg(t('set.setupApplyOk'))
+    } catch (e) {
+      setSetupErr(String((e as Error).message || e))
+    } finally {
+      setSetupBusy(false)
+    }
+  }
+
   return (
     <>
       <h1>{t('set.title')}</h1>
       <p className="lead">{t('set.lead')}</p>
-      <div className="panel form-grid">
+      <div className="panel">
+        <h2>{t('set.connection')}</h2>
+        <div className="form-grid">
         <label className="field">
           {t('set.device')}
           <select value={model} onChange={(e) => setModel(e.target.value)}>
@@ -148,6 +247,7 @@ export function Settings() {
           {t('set.poll')}
           <input type="number" step="0.1" value={poll} onChange={(e) => setPoll(Number(e.target.value))} />
         </label>
+        </div>
       </div>
       <div className="row">
         <button type="button" className="primary" onClick={save}>
@@ -162,6 +262,89 @@ export function Settings() {
       </div>
       {msg && <div className="toast ok">{msg}</div>}
       {err && <div className="toast error">{err}</div>}
+
+      {showDeviceDisplay && (
+        <>
+          <div className="panel" style={{ marginTop: '1.5rem' }}>
+            <h2>{t('set.deviceDisplay')}</h2>
+            <p className="lead" style={{ marginTop: 0 }}>
+              {t('set.deviceDisplayLead')}
+            </p>
+            <div className="form-grid">
+              <label className="field field-span-2">
+                {t('set.illumination')}
+                <div className="setup-slider-row">
+                  <input
+                    type="range"
+                    className="setup-slider"
+                    min={0}
+                    max={6}
+                    step={1}
+                    value={clamp(setup.illumination, 0, 6)}
+                    onChange={(e) =>
+                      setSetup({ ...setup, illumination: clamp(Number(e.target.value), 0, 6) })
+                    }
+                    aria-valuetext={t(ILLUM_MODE_KEYS[clamp(setup.illumination, 0, 6)])}
+                  />
+                  <span className="setup-slider-value">
+                    {t(ILLUM_MODE_KEYS[clamp(setup.illumination, 0, 6)])}
+                  </span>
+                </div>
+              </label>
+              <label className="field field-span-2">
+                {t('set.contrast')}
+                <div className="setup-slider-row">
+                  <input
+                    type="range"
+                    className="setup-slider"
+                    min={0}
+                    max={15}
+                    step={1}
+                    value={clamp(setup.contrast, 0, 15)}
+                    onChange={(e) =>
+                      setSetup({ ...setup, contrast: clamp(Number(e.target.value), 0, 15) })
+                    }
+                  />
+                  <span className="setup-slider-value">
+                    {clamp(setup.contrast, 0, 15)}{' '}
+                    <span className="field-hint">({t('set.contrastHint')})</span>
+                  </span>
+                </div>
+              </label>
+              <label className="field">
+                {t('set.alarmBeep')}
+                <select
+                  value={setup.alarm_beep ? 1 : 0}
+                  onChange={(e) => setSetup({ ...setup, alarm_beep: e.target.value === '1' })}
+                >
+                  <option value={0}>{t('common.off')}</option>
+                  <option value={1}>{t('common.on')}</option>
+                </select>
+              </label>
+              <label className="field">
+                {t('set.buttonBeep')}
+                <select
+                  value={setup.button_beep ? 1 : 0}
+                  onChange={(e) => setSetup({ ...setup, button_beep: e.target.value === '1' })}
+                >
+                  <option value={0}>{t('common.off')}</option>
+                  <option value={1}>{t('common.on')}</option>
+                </select>
+              </label>
+            </div>
+            <div className="row" style={{ marginTop: '1rem' }}>
+              <button type="button" onClick={() => void readSetup()} disabled={setupBusy}>
+                {t('set.readSetup')}
+              </button>
+              <button type="button" className="primary" onClick={() => void applySetup()} disabled={setupBusy}>
+                {t('set.applySetup')}
+              </button>
+            </div>
+          </div>
+          {setupMsg && <div className="toast ok">{setupMsg}</div>}
+          {setupErr && <div className="toast error">{setupErr}</div>}
+        </>
+      )}
     </>
   )
 }

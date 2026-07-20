@@ -1,10 +1,13 @@
-import { useCallback, useState } from 'react'
+import { useCallback, useState, type ReactNode } from 'react'
 import { api } from '../api'
 import { useCapabilities } from '../capabilities'
 import { useLocale } from '../locale'
 
-/** Local software defaults (match backend DeviceParamsG/H/J) — not device values. */
-const DEFAULT_G: Record<string, number> = {
+/**
+ * ELV factory voltage defaults from ELV Firm-/Software-Upgrade ALC 8500 Expert-2.
+ * Pause / cycles / −ΔU: previous software defaults (not numeric in ELV PDF tables).
+ */
+const ELV_FACTORY_G: Record<string, number> = {
   discharge_NiCd_mV: 900,
   discharge_NiMH_mV: 900,
   discharge_LiIon_mV: 3000,
@@ -19,7 +22,7 @@ const DEFAULT_G: Record<string, number> = {
   dU_NiMH: 20,
 }
 
-const DEFAULT_H: Record<string, number> = {
+const ELV_FACTORY_H: Record<string, number> = {
   charge_LiIon_mV: 4100,
   maintain_LiIon_mV: 4050,
   charge_LiPo_mV: 4200,
@@ -28,23 +31,58 @@ const DEFAULT_H: Record<string, number> = {
   maintain_Pb_mV: 2260,
 }
 
-const DEFAULT_J: Record<string, number | boolean> = {
+const ELV_FACTORY_J: Record<string, number> = {
   discharge_LiFePO4_mV: 2300,
   charge_LiFePO4_mV: 3650,
   maintain_LiFePO4_mV: 3450,
-  illumination: 1,
-  alarm_beep: false,
-  button_beep: false,
-  contrast: 8,
+}
+
+/** Longevity-oriented: earlier cut-off, lower charge voltage — less capacity, kinder to cells. */
+const GENTLE_G: Record<string, number> = {
+  discharge_NiCd_mV: 1000,
+  discharge_NiMH_mV: 1000,
+  discharge_LiIon_mV: 3100,
+  discharge_LiPo_mV: 3200,
+  discharge_Pb_mV: 1900,
+  pause_min: 5,
+  cycles_cycle_NiCd: 3,
+  cycles_cycle_NiMH: 3,
+  cycles_form_NiCd: 3,
+  cycles_form_NiMH: 3,
+  dU_NiCd: 25,
+  dU_NiMH: 12,
+}
+
+const GENTLE_H: Record<string, number> = {
+  charge_LiIon_mV: 4000,
+  maintain_LiIon_mV: 3950,
+  charge_LiPo_mV: 4100,
+  maintain_LiPo_mV: 4050,
+  charge_Pb_mV: 2350,
+  maintain_Pb_mV: 2260,
+}
+
+const GENTLE_J: Record<string, number> = {
+  discharge_LiFePO4_mV: 2400,
+  charge_LiFePO4_mV: 3600,
+  maintain_LiFePO4_mV: 3400,
+}
+
+function pickLiFe(j: Record<string, number | boolean>): Record<string, number> {
+  return {
+    discharge_LiFePO4_mV: Number(j.discharge_LiFePO4_mV ?? 0),
+    charge_LiFePO4_mV: Number(j.charge_LiFePO4_mV ?? 0),
+    maintain_LiFePO4_mV: Number(j.maintain_LiFePO4_mV ?? 0),
+  }
 }
 
 export function ChemistryParams() {
   const { t } = useLocale()
   const { capabilities } = useCapabilities()
   const showHj = capabilities.chemistry_hj
-  const [g, setG] = useState<Record<string, number>>(() => ({ ...DEFAULT_G }))
-  const [h, setH] = useState<Record<string, number>>(() => ({ ...DEFAULT_H }))
-  const [j, setJ] = useState<Record<string, number | boolean>>(() => ({ ...DEFAULT_J }))
+  const [g, setG] = useState<Record<string, number>>(() => ({ ...ELV_FACTORY_G }))
+  const [h, setH] = useState<Record<string, number>>(() => ({ ...ELV_FACTORY_H }))
+  const [j, setJ] = useState<Record<string, number>>(() => ({ ...ELV_FACTORY_J }))
   const [fromDevice, setFromDevice] = useState(false)
   const [busy, setBusy] = useState(false)
   const [msg, setMsg] = useState('')
@@ -54,7 +92,7 @@ export function ChemistryParams() {
     const res = await api.deviceParams()
     setG(res.g)
     setH(res.h)
-    setJ(res.j)
+    setJ(pickLiFe(res.j))
     setFromDevice(true)
   }, [])
 
@@ -101,14 +139,16 @@ export function ChemistryParams() {
           charge_Pb_mV: h.charge_Pb_mV,
           maintain_Pb_mV: h.maintain_Pb_mV,
         })
+        // Preserve device display/setup bytes that share the j frame.
+        const cur = await api.deviceParams()
         await api.putJ({
           discharge_LiFePO4_mV: j.discharge_LiFePO4_mV,
           charge_LiFePO4_mV: j.charge_LiFePO4_mV,
           maintain_LiFePO4_mV: j.maintain_LiFePO4_mV,
-          illumination: j.illumination,
-          alarm_beep: j.alarm_beep,
-          button_beep: j.button_beep,
-          contrast: j.contrast,
+          illumination: cur.j.illumination,
+          alarm_beep: cur.j.alarm_beep,
+          button_beep: cur.j.button_beep,
+          contrast: cur.j.contrast,
         })
       }
       setMsg(t('chem.applyOk'))
@@ -120,15 +160,22 @@ export function ChemistryParams() {
     }
   }
 
-  const doDefaults = () => {
+  const loadPreset = (
+    gPreset: Record<string, number>,
+    hPreset: Record<string, number>,
+    jPreset: Record<string, number>,
+    okKey: 'chem.factoryOk' | 'chem.gentleOk',
+  ) => {
     setErr('')
-    setMsg('')
-    setG({ ...DEFAULT_G })
-    setH({ ...DEFAULT_H })
-    setJ({ ...DEFAULT_J })
+    setG({ ...gPreset })
+    setH({ ...hPreset })
+    setJ({ ...jPreset })
     setFromDevice(false)
-    setMsg(t('chem.defaultsOk'))
+    setMsg(t(okKey))
   }
+
+  const doElvFactory = () => loadPreset(ELV_FACTORY_G, ELV_FACTORY_H, ELV_FACTORY_J, 'chem.factoryOk')
+  const doGentle = () => loadPreset(GENTLE_G, GENTLE_H, GENTLE_J, 'chem.gentleOk')
 
   const numField = (
     obj: Record<string, number>,
@@ -146,6 +193,13 @@ export function ChemistryParams() {
     </label>
   )
 
+  const typePanel = (title: string, fields: ReactNode) => (
+    <div className="panel">
+      <h2>{title}</h2>
+      <div className="form-grid">{fields}</div>
+    </div>
+  )
+
   const actionButtons = (
     <div className="row chem-actions">
       <button type="button" onClick={doRead} disabled={busy}>
@@ -154,8 +208,11 @@ export function ChemistryParams() {
       <button type="button" className="primary-danger" onClick={doApply} disabled={busy}>
         {t('chem.apply')}
       </button>
-      <button type="button" onClick={doDefaults} disabled={busy}>
-        {t('chem.defaults')}
+      <button type="button" onClick={doElvFactory} disabled={busy}>
+        {t('chem.factory')}
+      </button>
+      <button type="button" onClick={doGentle} disabled={busy}>
+        {t('chem.gentle')}
       </button>
     </div>
   )
@@ -183,154 +240,76 @@ export function ChemistryParams() {
 
       {actionButtons}
 
-      <div className="panel">
-        <h2>{t('chem.sectionG')}</h2>
-        <section className="chem-subtype">
-          <h3>{t('chem.groupNiCd')}</h3>
-          <div className="form-grid">
-            {numField(g, setG, 'discharge_NiCd_mV', t('chem.dischargeNiCd'))}
-            {numField(g, setG, 'dU_NiCd', t('chem.dUNiCd'))}
-            {numField(g, setG, 'cycles_cycle_NiCd', t('chem.cyclesCycleNiCd'))}
-            {numField(g, setG, 'cycles_form_NiCd', t('chem.cyclesFormNiCd'))}
-          </div>
-        </section>
-        <section className="chem-subtype">
-          <h3>{t('chem.groupNiMH')}</h3>
-          <div className="form-grid">
-            {numField(g, setG, 'discharge_NiMH_mV', t('chem.dischargeNiMH'))}
-            {numField(g, setG, 'dU_NiMH', t('chem.dUNiMH'))}
-            {numField(g, setG, 'cycles_cycle_NiMH', t('chem.cyclesCycleNiMH'))}
-            {numField(g, setG, 'cycles_form_NiMH', t('chem.cyclesFormNiMH'))}
-          </div>
-        </section>
-        <section className="chem-subtype">
-          <h3>{t('chem.groupLi41')}</h3>
-          <div className="form-grid">
-            {numField(g, setG, 'discharge_LiIon_mV', t('chem.dischargeLi41'))}
-          </div>
-        </section>
-        <section className="chem-subtype">
-          <h3>{t('chem.groupLi42')}</h3>
-          <div className="form-grid">
-            {numField(g, setG, 'discharge_LiPo_mV', t('chem.dischargeLi42'))}
-          </div>
-        </section>
-        <section className="chem-subtype">
-          <h3>{t('chem.groupPb')}</h3>
-          <div className="form-grid">
-            {numField(g, setG, 'discharge_Pb_mV', t('chem.dischargePb'))}
-          </div>
-        </section>
-        <section className="chem-subtype">
-          <h3>{t('chem.groupGeneral')}</h3>
-          <div className="form-grid">
-            {numField(g, setG, 'pause_min', t('chem.pauseMin'))}
-          </div>
-        </section>
-      </div>
-
-      {showHj && (
-        <div className="panel">
-          <h2>{t('chem.sectionH')}</h2>
-          <section className="chem-subtype">
-            <h3>{t('chem.groupLi41')}</h3>
-            <div className="form-grid">
-              {numField(h, setH, 'charge_LiIon_mV', t('chem.chargeLi41'))}
-              {numField(h, setH, 'maintain_LiIon_mV', t('chem.maintainLi41'))}
-            </div>
-          </section>
-          <section className="chem-subtype">
-            <h3>{t('chem.groupLi42')}</h3>
-            <div className="form-grid">
-              {numField(h, setH, 'charge_LiPo_mV', t('chem.chargeLi42'))}
-              {numField(h, setH, 'maintain_LiPo_mV', t('chem.maintainLi42'))}
-            </div>
-          </section>
-          <section className="chem-subtype">
-            <h3>{t('chem.groupPb')}</h3>
-            <div className="form-grid">
-              {numField(h, setH, 'charge_Pb_mV', t('chem.chargePb'))}
-              {numField(h, setH, 'maintain_Pb_mV', t('chem.maintainPb'))}
-            </div>
-          </section>
-        </div>
+      {typePanel(
+        t('chem.groupNiCd'),
+        <>
+          {numField(g, setG, 'discharge_NiCd_mV', t('chem.discharge'))}
+          {numField(g, setG, 'dU_NiCd', t('chem.dU'))}
+          {numField(g, setG, 'cycles_cycle_NiCd', t('chem.cyclesCycle'))}
+          {numField(g, setG, 'cycles_form_NiCd', t('chem.cyclesForm'))}
+        </>,
       )}
 
-      {showHj && (
-        <div className="panel">
-          <h2>{t('chem.sectionJ')}</h2>
-          <section className="chem-subtype">
-            <h3>{t('chem.groupLiFe')}</h3>
-            <div className="form-grid">
-              <label className="field">
-                {t('chem.dischargeLiFe')}
-                <input
-                  type="number"
-                  value={Number(j.discharge_LiFePO4_mV || 0)}
-                  onChange={(e) => setJ({ ...j, discharge_LiFePO4_mV: Number(e.target.value) })}
-                />
-              </label>
-              <label className="field">
-                {t('chem.chargeLiFe')}
-                <input
-                  type="number"
-                  value={Number(j.charge_LiFePO4_mV || 0)}
-                  onChange={(e) => setJ({ ...j, charge_LiFePO4_mV: Number(e.target.value) })}
-                />
-              </label>
-              <label className="field">
-                {t('chem.maintainLiFe')}
-                <input
-                  type="number"
-                  value={Number(j.maintain_LiFePO4_mV || 0)}
-                  onChange={(e) => setJ({ ...j, maintain_LiFePO4_mV: Number(e.target.value) })}
-                />
-              </label>
-            </div>
-          </section>
-          <section className="chem-subtype">
-            <h3>{t('chem.groupSetup')}</h3>
-            <div className="form-grid">
-              <label className="field">
-                {t('chem.illumination')}
-                <input
-                  type="number"
-                  value={Number(j.illumination || 0)}
-                  onChange={(e) => setJ({ ...j, illumination: Number(e.target.value) })}
-                />
-              </label>
-              <label className="field">
-                {t('chem.contrast')}
-                <input
-                  type="number"
-                  value={Number(j.contrast || 0)}
-                  onChange={(e) => setJ({ ...j, contrast: Number(e.target.value) })}
-                />
-              </label>
-              <label className="field">
-                {t('chem.alarmBeep')}
-                <select
-                  value={j.alarm_beep ? 1 : 0}
-                  onChange={(e) => setJ({ ...j, alarm_beep: e.target.value === '1' })}
-                >
-                  <option value={0}>{t('common.off')}</option>
-                  <option value={1}>{t('common.on')}</option>
-                </select>
-              </label>
-              <label className="field">
-                {t('chem.buttonBeep')}
-                <select
-                  value={j.button_beep ? 1 : 0}
-                  onChange={(e) => setJ({ ...j, button_beep: e.target.value === '1' })}
-                >
-                  <option value={0}>{t('common.off')}</option>
-                  <option value={1}>{t('common.on')}</option>
-                </select>
-              </label>
-            </div>
-          </section>
-        </div>
+      {typePanel(
+        t('chem.groupNiMH'),
+        <>
+          {numField(g, setG, 'discharge_NiMH_mV', t('chem.discharge'))}
+          {numField(g, setG, 'dU_NiMH', t('chem.dU'))}
+          {numField(g, setG, 'cycles_cycle_NiMH', t('chem.cyclesCycle'))}
+          {numField(g, setG, 'cycles_form_NiMH', t('chem.cyclesForm'))}
+        </>,
       )}
+
+      {typePanel(
+        t('chem.groupLi41'),
+        <>
+          {numField(g, setG, 'discharge_LiIon_mV', t('chem.discharge'))}
+          {showHj && (
+            <>
+              {numField(h, setH, 'charge_LiIon_mV', t('chem.charge'))}
+              {numField(h, setH, 'maintain_LiIon_mV', t('chem.maintain'))}
+            </>
+          )}
+        </>,
+      )}
+
+      {typePanel(
+        t('chem.groupLi42'),
+        <>
+          {numField(g, setG, 'discharge_LiPo_mV', t('chem.discharge'))}
+          {showHj && (
+            <>
+              {numField(h, setH, 'charge_LiPo_mV', t('chem.charge'))}
+              {numField(h, setH, 'maintain_LiPo_mV', t('chem.maintain'))}
+            </>
+          )}
+        </>,
+      )}
+
+      {typePanel(
+        t('chem.groupPb'),
+        <>
+          {numField(g, setG, 'discharge_Pb_mV', t('chem.discharge'))}
+          {showHj && (
+            <>
+              {numField(h, setH, 'charge_Pb_mV', t('chem.charge'))}
+              {numField(h, setH, 'maintain_Pb_mV', t('chem.maintain'))}
+            </>
+          )}
+        </>,
+      )}
+
+      {showHj &&
+        typePanel(
+          t('chem.groupLiFe'),
+          <>
+            {numField(j, setJ, 'discharge_LiFePO4_mV', t('chem.discharge'))}
+            {numField(j, setJ, 'charge_LiFePO4_mV', t('chem.charge'))}
+            {numField(j, setJ, 'maintain_LiFePO4_mV', t('chem.maintain'))}
+          </>,
+        )}
+
+      {typePanel(t('chem.groupGeneral'), <>{numField(g, setG, 'pause_min', t('chem.pauseMin'))}</>)}
 
       <div className="row chem-actions chem-actions-footer">
         <button type="button" className="primary-danger" onClick={doApply} disabled={busy}>

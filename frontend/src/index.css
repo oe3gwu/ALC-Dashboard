@@ -857,6 +857,31 @@ label.field input.corrected {
   background: rgba(221, 75, 57, 0.08);
 }
 
+.form-grid .field-span-2 {
+  grid-column: 1 / -1;
+}
+.setup-slider-row {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  flex-wrap: wrap;
+}
+.setup-slider {
+  flex: 1 1 12rem;
+  min-width: 10rem;
+  accent-color: var(--accent, #3c8dbc);
+  height: 1.25rem;
+  padding: 0;
+  border: none;
+  background: transparent;
+}
+.setup-slider-value {
+  font-family: var(--mono);
+  font-size: 0.9rem;
+  color: var(--text);
+  min-width: 7rem;
+}
+
 .start-form {
   display: flex;
   flex-direction: column;
