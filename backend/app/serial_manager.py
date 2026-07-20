@@ -436,7 +436,11 @@ class SerialManager:
             "mock": self.simulator,  # legacy
             "device_model": profile.id,
             "device_label": profile.label,
-            "status_label": profile.simulator_label if self.simulator and self.is_connected else (self.connected_port if self.is_connected else None),
+            "status_label": (
+                profile.simulator_label
+                if self.simulator and self.is_connected
+                else (profile.label if self.is_connected else None)
+            ),
             "last_error": self.last_error,
             "baudrate": profile.baudrate if profile.protocol == "alc7000_rs232" else self.cfg.baudrate,
             "channel_count": profile.channel_count,

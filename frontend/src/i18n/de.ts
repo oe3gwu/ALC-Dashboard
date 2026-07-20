@@ -61,6 +61,7 @@ export const de = {
   'dash.toSettings': 'In den Einstellungen verbinden',
   'dash.orSimulator': '— oder den Simulator aktivieren.',
   'dash.noProgram': 'Kein Programm',
+  'dash.storedConfig': 'Gespeichert',
   'dash.cellsSuffix': 'Zellen',
   'dash.liveTitle': 'Kanal {n} Live',
 

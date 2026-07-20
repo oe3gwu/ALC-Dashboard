@@ -50,7 +50,10 @@ def parse_frame(frame: bytes) -> bytes:
 
 
 def extract_frames(buffer: bytearray) -> tuple[list[bytes], bytearray]:
-    """Extract complete STX…ETX frames from a stream buffer."""
+    """Extract complete STX…ETX frames from a stream buffer.
+
+    ETX after ESC is data (escaped), not a frame terminator.
+    """
     frames: list[bytes] = []
     while True:
         try:
@@ -60,9 +63,22 @@ def extract_frames(buffer: bytearray) -> tuple[list[bytes], bytearray]:
             break
         if start > 0:
             del buffer[:start]
-        try:
-            end = buffer.index(ETX, 1)
-        except ValueError:
+        end: int | None = None
+        i = 1
+        while i < len(buffer):
+            b = buffer[i]
+            if b == ESC:
+                if i + 1 >= len(buffer):
+                    # Incomplete escape — wait for more bytes
+                    end = None
+                    break
+                i += 2
+                continue
+            if b == ETX:
+                end = i
+                break
+            i += 1
+        if end is None:
             break
         frame = bytes(buffer[: end + 1])
         del buffer[: end + 1]

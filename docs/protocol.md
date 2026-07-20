@@ -33,6 +33,9 @@ Multi-byte values: **big-endian**.
 | `p` / `P` | Read / set channel parameters |
 | `a` / `A` | Read activity / start(0)/stop(1) |
 | `m` | Measurements for all channels |
+
+On firmware **V2.08** (Ident prefix **`h`**, serial e.g. `WEQ…`), `m` is **per channel**: request `m` + channel index; reply is `m` + channel + U/I/C. A bare `m` often returns NAK `04h` after unused channels were queried. The dashboard client auto-detects this vs the classic 32-byte all-channel reply.
+
 | `t` | Temperatures |
 | `d` / `D` | Read / write battery database |
 | `v` | Data-logger block (100 samples) |

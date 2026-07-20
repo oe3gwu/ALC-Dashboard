@@ -24,7 +24,7 @@ from .units import (
     u32,
     voltage_from_digits,
 )
-from .constants import INVALID_MEASURE, SAMPLES_PER_BLOCK
+from .constants import INVALID_MEASURE, MAX_LOGGER_BLOCKS, SAMPLES_PER_BLOCK
 
 
 class Transport(Protocol):
@@ -60,9 +60,12 @@ class ProtocolClient:
         if not body or body[0] not in (ord("a"), ord("A")):
             raise ValueError(f"Unerwartete Antwort auf a: {body!r}")
         data = body[1:]
-        if len(data) < 3:
+        if len(data) < 2:
             raise ValueError("Aktivitätsantwort zu kurz")
-        return ActivityState(channel=data[0], action=data[1], stage=data[2])
+        # Classic manual: ch + action + stage. FW 2.08 (Ident h): ch + stage only.
+        if len(data) >= 3:
+            return ActivityState(channel=data[0], action=data[1], stage=data[2])
+        return ActivityState(channel=data[0], action=0, stage=data[1])
 
     def set_activity(self, channel: int, stop: bool = False) -> ActivityState:
         action = 0x01 if stop else 0x00
@@ -70,35 +73,55 @@ class ProtocolClient:
         if not body or body[0] not in (ord("a"), ord("A")):
             raise ValueError(f"Unerwartete Antwort auf A: {body!r}")
         data = body[1:]
-        if len(data) < 3:
-            # some firmwares echo only channel+action
-            stage = data[2] if len(data) > 2 else 0
-            return ActivityState(channel=data[0] if data else channel, action=action, stage=stage)
-        return ActivityState(channel=data[0], action=data[1], stage=data[2])
+        if len(data) >= 3:
+            return ActivityState(channel=data[0], action=data[1], stage=data[2])
+        if len(data) >= 2:
+            return ActivityState(channel=data[0], action=action, stage=data[1])
+        return ActivityState(channel=data[0] if data else channel, action=action, stage=0)
+
+    def _parse_measurement(self, channel: int, data: bytes) -> ChannelMeasurement:
+        if len(data) < 8:
+            return ChannelMeasurement(channel=channel, voltage_V=0.0, current_mA=0.0, capacity_mAh=0.0)
+        u = u16(data, 0)
+        i = u16(data, 2)
+        c = u32(data, 4)
+        return ChannelMeasurement(
+            channel=channel,
+            voltage_V=voltage_from_digits(u),
+            current_mA=current_from_digits(i, allow_invalid=True),
+            capacity_mAh=capacity_from_digits(c) if c != 0xFFFFFFFF else None,
+        )
 
     def get_measurements(self) -> list[ChannelMeasurement]:
-        body = self._req(bytes([ord("m")]))
+        """Read live U/I/C.
+
+        Manual / simulator: one ``m`` → 4×(U,I,C) = 32 data bytes.
+        FW 2.08 (Ident ``h``, e.g. WEQ…): ``m`` + channel → ch + U/I/C (bare ``m`` often NAK).
+        """
+        body = self._req(bytes([ord("m"), 0x00]))
+        if not body or body[0] not in (ord("m"), ord("M")):
+            body = self._req(bytes([ord("m")]))
         if not body or body[0] not in (ord("m"), ord("M")):
             raise ValueError(f"Unerwartete Antwort auf m: {body!r}")
         data = body[1:]
-        # 4 channels × (U 2 + I 2 + C 4) = 32 bytes typical
+
+        # All-channel blob (simulator / older firmware)
+        if len(data) >= 32:
+            return [self._parse_measurement(ch, data[ch * 8 : ch * 8 + 8]) for ch in range(4)]
+
+        # Per-channel (FW 2.08): optional echoed channel byte + 8 payload bytes
         out: list[ChannelMeasurement] = []
-        stride = 8
         for ch in range(4):
-            o = ch * stride
-            if o + stride > len(data):
-                break
-            u = u16(data, o)
-            i = u16(data, o + 2)
-            c = u32(data, o + 4)
-            out.append(
-                ChannelMeasurement(
-                    channel=ch,
-                    voltage_V=voltage_from_digits(u),
-                    current_mA=current_from_digits(i, allow_invalid=True),
-                    capacity_mAh=capacity_from_digits(c) if c != 0xFFFFFFFF else None,
-                )
-            )
+            if ch == 0:
+                chunk = data
+            else:
+                body = self._req(bytes([ord("m"), ch & 0xFF]))
+                if not body or body[0] not in (ord("m"), ord("M")):
+                    raise ValueError(f"Unerwartete Antwort auf m/{ch}: {body!r}")
+                chunk = body[1:]
+            if chunk and chunk[0] == ch and len(chunk) >= 9:
+                chunk = chunk[1:]
+            out.append(self._parse_measurement(ch, chunk))
         return out
 
     def get_temperatures(self) -> Temperatures:
@@ -166,27 +189,42 @@ class ProtocolClient:
             pass
 
     def get_logger_block(self, channel: int, block: int) -> bytes:
-        body = self._req(
-            bytes([ord("v"), channel & 0xFF, (block >> 8) & 0xFF, block & 0xFF]),
-            timeout=5.0,
-        )
-        if not body or body[0] not in (ord("v"), ord("V")):
-            raise ValueError(f"Unerwartete Antwort auf v: {body!r}")
-        # v + ch + block(2) + 100 samples × 8 bytes
-        return body[1:]
+        payload = bytes([ord("v"), channel & 0xFF, (block >> 8) & 0xFF, block & 0xFF])
+        last: bytes | None = None
+        for attempt in range(3):
+            body = self._req(payload, timeout=5.0)
+            if body and body[0] in (ord("v"), ord("V")):
+                return body[1:]
+            last = body
+            # NAK 04h — same recovery as bare ``m`` after unused-channel polls
+            if body == bytes([0x04]) and attempt < 2:
+                try:
+                    self.get_channel_params(channel)
+                except Exception:
+                    pass
+                continue
+            break
+        raise ValueError(f"Unerwartete Antwort auf v: {last!r}")
 
     def read_logger(self, channel: int, sample_count: int | None = None) -> LoggerData:
         params = self.get_channel_params(channel)
         count = sample_count if sample_count is not None else params.logger_samples
-        blocks = max(1, (count + SAMPLES_PER_BLOCK - 1) // SAMPLES_PER_BLOCK) if count else 1
+        count = max(0, min(int(count), MAX_LOGGER_BLOCKS * SAMPLES_PER_BLOCK))
+        if count == 0:
+            return LoggerData(channel=channel, header=LoggerHeader(), samples=[])
+
+        blocks = max(1, (count + SAMPLES_PER_BLOCK - 1) // SAMPLES_PER_BLOCK)
         raw_samples: list[bytes] = []
-        for b in range(min(blocks, 651)):
-            data = self.get_logger_block(channel, b)
-            # skip ch + block header if present
+        for b in range(min(blocks, MAX_LOGGER_BLOCKS)):
+            try:
+                data = self.get_logger_block(channel, b)
+            except ValueError:
+                if b == 0:
+                    raise
+                break  # later block NAK → return what we have
             payload = data
             if len(data) >= 3 and data[0] == channel:
                 payload = data[3:]
-            # 100 × 8 bytes
             for i in range(SAMPLES_PER_BLOCK):
                 o = i * 8
                 if o + 8 > len(payload):
@@ -194,9 +232,9 @@ class ProtocolClient:
                 raw_samples.append(payload[o : o + 8])
 
         header = LoggerHeader()
-        samples: list[LoggerSample] = []
-        # First 3 records are header fields per manual
-        if len(raw_samples) >= 3:
+        measure_records = raw_samples
+        # Manual: first 3 records = header. FW 2.08 (Ident h) often stores U/I/C from sample 0.
+        if len(raw_samples) >= 3 and not self._logger_records_look_like_uic(raw_samples[:3]):
             h1, h2, h3 = raw_samples[0], raw_samples[1], raw_samples[2]
             header = LoggerHeader(
                 battery_slot=h1[0],
@@ -215,7 +253,6 @@ class ProtocolClient:
                 forming_mA=current_from_digits(u16(h3, 4)) or 0 if len(h3) >= 6 else 0,
                 pause_s=u16(h3, 6) if len(h3) >= 8 else 0,
             )
-            # Fix capacity/charge packing from field2: type, cells, capacity(4), charge(2) = 8
             if len(h2) >= 8:
                 header.capacity_mAh = capacity_from_digits(u32(h2, 2))
                 header.charge_mA = current_from_digits(u16(h2, 6)) or 0
@@ -225,10 +262,22 @@ class ProtocolClient:
                 header.discharge_mA = current_from_digits(u16(h3, 2)) or 0
                 header.forming_mA = current_from_digits(u16(h3, 4)) or 0
                 header.pause_s = u16(h3, 6)
+            # Fill program/type from channel params when header omitted on wire
             measure_records = raw_samples[3:]
         else:
-            measure_records = raw_samples
+            header = LoggerHeader(
+                battery_slot=params.battery_slot,
+                program=params.program,
+                battery_type=params.battery_type,
+                cells=params.cells,
+                capacity_mAh=params.capacity_mAh,
+                charge_mA=params.charge_mA,
+                discharge_mA=params.discharge_mA,
+                forming_mA=params.forming_mA,
+                pause_s=params.pause_s,
+            )
 
+        samples: list[LoggerSample] = []
         for rec in measure_records[:count] if count else measure_records:
             u = u16(rec, 0)
             i = u16(rec, 2)
@@ -248,3 +297,19 @@ class ProtocolClient:
             )
 
         return LoggerData(channel=channel, header=header, samples=samples)
+
+    @staticmethod
+    def _logger_records_look_like_uic(records: list[bytes]) -> bool:
+        """True when records look like voltage/current/capacity, not the 3-record header."""
+        ok = 0
+        for rec in records:
+            if len(rec) < 8:
+                return False
+            u = u16(rec, 0)
+            i = u16(rec, 2)
+            if u == INVALID_MEASURE:
+                continue
+            # Plausible pack voltage 0.05 V … 60 V
+            if 50 <= u <= 60000 and (i == INVALID_MEASURE or i < 200_000):
+                ok += 1
+        return ok >= 2

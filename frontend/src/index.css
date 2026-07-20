@@ -1009,6 +1009,7 @@ label.field input.corrected {
 }
 .status-dot.on { background: var(--ok); }
 .status-dot.sim { background: var(--warn); }
+.status-dot.hw { background: #6aa84f; }
 .status-dot.error { background: #c62828; }
 .status-dot.pulse-rx {
   background: #ff3b30;
@@ -1019,6 +1020,12 @@ label.field input.corrected {
   background: #34c759;
   box-shadow: 0 0 5px #34c759;
   transition: background 40ms linear, box-shadow 40ms linear;
+}
+.sidebar-status-port {
+  margin: 0.15rem 0 0 1.15rem;
+  font-size: 0.8em;
+  color: var(--muted);
+  word-break: break-all;
 }
 
 .toast {

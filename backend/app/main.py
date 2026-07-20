@@ -238,15 +238,33 @@ def update_config(body: ConfigUpdate) -> dict[str, Any]:
 # ——— Live / channels ———
 
 
+def _channel_live_dict(client: Any, channel: int) -> dict[str, Any]:
+    """Params from ``p``, but live stage from ``a`` (FW keeps ``p`` stage at idle during faults)."""
+    d = client.get_channel_params(channel).to_dict()
+    try:
+        act = client.get_activity(channel)
+        d["stage"] = act.stage
+        d["stage_name"] = act.stage_name
+        d["idle"] = act.stage_name == "Leerlauf"
+    except Exception as exc:
+        log.debug("activity ch%s: %s", channel, exc)
+    return d
+
+
 @app.get("/api/live")
 def live() -> dict[str, Any]:
     client = require_client()
     n = channel_count()
-    with manager.with_client():
-        channels = [client.get_channel_params(i).to_dict() for i in range(n)]
-        measurements = [m.to_dict() for m in client.get_measurements()[:n]]
-        temps = client.get_temperatures().to_dict()
-    return {"channels": channels, "measurements": measurements, "temperatures": temps}
+    try:
+        with manager.with_client():
+            # Measurements before params: some FW NAKs bare ``m`` after reading unused channels
+            measurements = [m.to_dict() for m in client.get_measurements()[:n]]
+            temps = client.get_temperatures().to_dict()
+            channels = [_channel_live_dict(client, i) for i in range(n)]
+    except Exception as exc:
+        manager.last_error = str(exc)
+        raise HTTPException(503, f"Live-Abfrage fehlgeschlagen: {exc}") from exc
+    return {"channels": channels, "measurements": measurements, "temperatures": temps, "connection": manager.status()}
 
 
 @app.get("/api/channels/{channel}")
@@ -548,8 +566,12 @@ def read_logger(channel: int, save: bool = True) -> dict[str, Any]:
     require_feature("logger")
     valid_channel(channel)
     client = require_client()
-    with manager.with_client():
-        data = client.read_logger(channel)
+    try:
+        with manager.with_client():
+            data = client.read_logger(channel)
+    except Exception as exc:
+        manager.last_error = str(exc)
+        raise HTTPException(503, f"Logger-Lesen fehlgeschlagen: {exc}") from exc
     result: dict[str, Any] = {"logger": data.to_dict()}
     if save:
         meta = archive.save(data)
@@ -655,9 +677,9 @@ async def ws_live(ws: WebSocket) -> None:
                     client = manager.client
                     n = channel_count()
                     with manager.with_client():
-                        channels = [client.get_channel_params(i).to_dict() for i in range(n)]
                         measurements = [m.to_dict() for m in client.get_measurements()[:n]]
                         temps = client.get_temperatures().to_dict()
+                        channels = [_channel_live_dict(client, i) for i in range(n)]
                     payload: dict[str, Any] = {
                         "type": "live",
                         "channels": channels,

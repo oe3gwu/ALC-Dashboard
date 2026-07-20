@@ -45,7 +45,7 @@ function useSerialLedPulse(seq: number) {
     if (seq === prev.current) return
     prev.current = seq
     setOn(true)
-    const t = window.setTimeout(() => setOn(false), 140)
+    const t = window.setTimeout(() => setOn(false), 280)
     return () => window.clearTimeout(t)
   }, [seq])
   return on
@@ -68,8 +68,8 @@ export function Layout() {
     connection?.device_label ||
     devices.find((d) => d.id === (connection?.device_model || deviceModel))?.label ||
     t('sidebar.simulator')
-  // Always show charger name; when live hardware is up, prefer the port on the first line
-  const statusLabel = liveHw ? connection?.port || profileLabel : profileLabel
+  // Always show charger model name; port as second line when on hardware
+  const statusLabel = connection?.status_label || profileLabel
 
   let statusDotClass = ''
   if (hasError) {
@@ -77,7 +77,7 @@ export function Layout() {
   } else if (liveHw) {
     if (rxOn) statusDotClass = 'pulse-rx'
     else if (txOn) statusDotClass = 'pulse-tx'
-    else statusDotClass = 'sim' // orange idle; flashes red/green on real serial I/O
+    else statusDotClass = 'hw' // muted green idle; flashes red/green on RX/TX
   } else if (connected && isSim) {
     statusDotClass = 'sim'
   }
@@ -130,6 +130,9 @@ export function Layout() {
             />
             <span className="sidebar-status-text">{statusLabel}</span>
           </div>
+          {liveHw && connection?.port ? (
+            <div className="sidebar-status-port mono">{connection.port}</div>
+          ) : null}
           {hasError ? (
             <span className="sidebar-mode-badge error" title={lastError}>
               {t('sidebar.modeError')}

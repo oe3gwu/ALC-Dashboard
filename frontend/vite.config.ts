@@ -39,6 +39,8 @@ export default defineConfig({
       },
       workbox: {
         navigateFallback: 'index.html',
+        // Export-Links (/api/archive/.../pdf|csv) are top-level navigations — must not get the SPA shell
+        navigateFallbackDenylist: [/^\/api\//, /^\/ws/],
         runtimeCaching: [
           {
             urlPattern: ({ url }) => url.pathname.startsWith('/api/') || url.pathname.startsWith('/ws'),

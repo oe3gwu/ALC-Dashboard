@@ -132,10 +132,22 @@ export function DataLogger() {
             <div className="row">
               {sessionId && (
                 <>
-                  <a className="btn" href={`/api/archive/${sessionId}/export/csv`}>
+                  <a
+                    className="btn"
+                    href={`/api/archive/${sessionId}/export/csv`}
+                    download
+                    target="_blank"
+                    rel="noopener noreferrer"
+                  >
                     CSV
                   </a>
-                  <a className="btn" href={`/api/archive/${sessionId}/export/json`}>
+                  <a
+                    className="btn"
+                    href={`/api/archive/${sessionId}/export/json`}
+                    download
+                    target="_blank"
+                    rel="noopener noreferrer"
+                  >
                     JSON
                   </a>
                   <a
@@ -191,7 +203,13 @@ export function DataLogger() {
                   >
                     PDF
                   </a>
-                  <a className="btn" href={`/api/archive/${s.id}/export/csv`}>
+                  <a
+                    className="btn"
+                    href={`/api/archive/${s.id}/export/csv`}
+                    download
+                    target="_blank"
+                    rel="noopener noreferrer"
+                  >
                     CSV
                   </a>
                   <button className="danger" onClick={() => deleteSession(String(s.id))}>

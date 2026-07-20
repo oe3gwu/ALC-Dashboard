@@ -26,46 +26,41 @@ function xRange(_u: uPlot, min: number, max: number): [number, number] {
   return [min, max]
 }
 
-/** Keep voltage axis usable when all samples are identical. */
-function vRange(_u: uPlot, min: number, max: number): [number, number] {
-  if (!Number.isFinite(min) || !Number.isFinite(max)) return [0, 10]
-  if (min === max) {
-    const pad = Math.max(0.5, Math.abs(min) * 0.08)
-    return [min - pad, max + pad]
+/**
+ * Absolute Y scale: always include 0 (never zoom into a band that hides zero).
+ * Negative values (e.g. discharge current) keep 0 in the middle of the span.
+ */
+function absoluteRange(min: number, max: number, fallbackMax: number, padRatio = 0.08): [number, number] {
+  if (!Number.isFinite(min) || !Number.isFinite(max)) return [0, fallbackMax]
+  let lo = Math.min(0, min)
+  let hi = Math.max(0, max)
+  if (hi === lo) return [0, fallbackMax]
+  const pad = Math.max((hi - lo) * padRatio, Number.EPSILON)
+  if (lo >= 0) {
+    hi += pad
+  } else if (hi <= 0) {
+    lo -= pad
+  } else {
+    lo -= pad
+    hi += pad
   }
-  const pad = (max - min) * 0.08
-  return [min - pad, max + pad]
+  if (hi - lo < fallbackMax * 0.05) {
+    if (lo >= 0) hi = Math.max(hi, fallbackMax)
+    else if (hi <= 0) lo = Math.min(lo, -fallbackMax)
+  }
+  return [lo, hi]
 }
 
-/**
- * Current axis: when I≈0 for all points, auto-scale collapses (min=max=0)
- * and uPlot draws the series outside the plot — orange line under the chart.
- */
+function vRange(_u: uPlot, min: number, max: number): [number, number] {
+  return absoluteRange(min, max, 10)
+}
+
 function iRange(_u: uPlot, min: number, max: number): [number, number] {
-  if (!Number.isFinite(min) || !Number.isFinite(max)) return [0, 100]
-  if (min === max) {
-    if (Math.abs(min) < 1e-6) return [0, 100]
-    const pad = Math.max(10, Math.abs(min) * 0.15)
-    return [min - pad, max + pad]
-  }
-  const span = max - min
-  if (span < 10) {
-    const lo = Math.min(0, min)
-    return [lo, Math.max(lo + 100, max + 10)]
-  }
-  const pad = span * 0.08
-  return [min - pad, max + pad]
+  return absoluteRange(min, max, 100)
 }
 
 function cRange(_u: uPlot, min: number, max: number): [number, number] {
-  if (!Number.isFinite(min) || !Number.isFinite(max)) return [0, 100]
-  if (min === max) {
-    if (Math.abs(min) < 1e-6) return [0, 100]
-    const pad = Math.max(5, Math.abs(min) * 0.12)
-    return [Math.max(0, min - pad), max + pad]
-  }
-  const pad = (max - min) * 0.08
-  return [Math.max(0, min - pad), max + pad]
+  return absoluteRange(min, max, 100)
 }
 
 function toUiData(pts: ChartPoint[]): uPlot.AlignedData {

@@ -63,6 +63,7 @@ export const en: Record<MessageKey, string> = {
   'dash.toSettings': 'Connect in Settings',
   'dash.orSimulator': '— or enable the simulator.',
   'dash.noProgram': 'No program',
+  'dash.storedConfig': 'Stored',
   'dash.cellsSuffix': 'cells',
   'dash.liveTitle': 'Channel {n} live',
 

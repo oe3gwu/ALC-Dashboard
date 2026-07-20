@@ -9,7 +9,7 @@ import { useLocale } from '../locale'
 export function ChannelDetail() {
   const { id } = useParams()
   const ch = Number(id || 0)
-  const { channels, measurements } = useLive()
+  const { channels, measurements, refresh } = useLive()
   const { capabilities } = useCapabilities()
   const { t, stage } = useLocale()
   const c = channels.find((x) => x.channel === ch)
@@ -17,11 +17,17 @@ export function ChannelDetail() {
   const points = useChannelSeries(ch)
   const channelList = Array.from({ length: capabilities.channel_count }, (_, i) => i)
 
+  const onStop = async () => {
+    await api.activity(ch, true)
+    await refresh()
+  }
+
   return (
     <div className="page-detail">
       <h1>{t('common.channelN', { n: ch + 1 })}</h1>
       <p className="lead">
-        {c?.program_name || '—'} · {stage(c?.stage_name)} · {c?.battery_type_name || '—'}
+        {stage(c?.stage_name)} · {c?.battery_type_name || '—'}
+        {c && !c.idle && c.program_name ? ` · ${c.program_name}` : ''}
       </p>
       <div className="row page-detail-actions">
         <Link className="btn" to="/">
@@ -35,7 +41,7 @@ export function ChannelDetail() {
         <Link className="btn primary" to={`/start?ch=${ch}`}>
           {t('detail.startProcess')}
         </Link>
-        <button className="danger" onClick={() => api.activity(ch, true)}>
+        <button className="danger" onClick={() => void onStop()}>
           {t('common.stop')}
         </button>
       </div>
