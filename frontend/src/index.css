@@ -23,6 +23,9 @@
   --panel-bg: #272c30;
   --metric-bg: #32393e;
   --chart-bg: #2a2f34;
+  --chart-u: #3c8dbc;
+  --chart-i: #ec6a0c;
+  --chart-c: #00a65a;
   --input-bg: #353c42;
   --nav-link: #bec5cb;
   --nav-hover-bg: #22272a;
@@ -801,6 +804,18 @@ h1 {
   font-family: var(--mono);
   font-size: 0.95rem;
   font-weight: 500;
+}
+.metric-u label,
+.metric-u strong {
+  color: var(--chart-u);
+}
+.metric-i label,
+.metric-i strong {
+  color: var(--chart-i);
+}
+.metric-c label,
+.metric-c strong {
+  color: var(--chart-c);
 }
 
 .actions {

@@ -1,6 +1,7 @@
 import { useEffect, useRef } from 'react'
 import uPlot from 'uplot'
 import 'uplot/dist/uPlot.min.css'
+import { useLocale } from '../locale'
 
 export type ChartPoint = { t: number; v: number | null; i: number | null; c?: number | null }
 export type SeriesMode = 'ui' | 'cap'
@@ -80,6 +81,26 @@ function toCapData(pts: ChartPoint[]): uPlot.AlignedData {
   return [pts.map((p) => p.t), pts.map((p) => p.c ?? null)]
 }
 
+function fmtTime(v: number | null | undefined): string {
+  if (v == null || !Number.isFinite(v)) return '—'
+  return String(Math.round(v))
+}
+
+function fmtU(v: number | null | undefined): string {
+  if (v == null || !Number.isFinite(v)) return '—'
+  return v.toFixed(v >= 10 ? 1 : 2)
+}
+
+function fmtI(v: number | null | undefined): string {
+  if (v == null || !Number.isFinite(v)) return '—'
+  return v.toFixed(0)
+}
+
+function fmtC(v: number | null | undefined): string {
+  if (v == null || !Number.isFinite(v)) return '—'
+  return v.toFixed(v >= 100 ? 0 : 1)
+}
+
 export function LiveChart({
   points,
   title,
@@ -93,6 +114,7 @@ export function LiveChart({
   compact?: boolean
   seriesMode?: SeriesMode
 }) {
+  const { t, locale } = useLocale()
   const el = useRef<HTMLDivElement>(null)
   const plot = useRef<uPlot | null>(null)
   const pointsRef = useRef(points)
@@ -103,6 +125,11 @@ export function LiveChart({
   useEffect(() => {
     const node = el.current
     if (!node) return
+
+    const labelT = t('chart.seriesTime')
+    const labelU = t('chart.seriesU')
+    const labelI = t('chart.seriesI')
+    const labelC = t('chart.seriesC')
 
     const syncData = (u: uPlot) => {
       const pts = pointsRef.current
@@ -147,7 +174,10 @@ export function LiveChart({
               title: compact ? undefined : title,
               legend: { show: !compact },
               cursor: { show: true },
-              series: [{}, { label: 'C (mAh)', stroke: COLOR_C, width: compact ? 1.5 : 2 }],
+              series: [
+                { label: labelT, value: (_u, v) => fmtTime(v) },
+                { label: labelC, stroke: COLOR_C, width: compact ? 1.5 : 2, value: (_u, v) => fmtC(v) },
+              ],
               axes: [
                 {
                   stroke: '#8e989d',
@@ -175,9 +205,15 @@ export function LiveChart({
               legend: { show: !compact },
               cursor: { show: true },
               series: [
-                {},
-                { label: 'U (V)', stroke: COLOR_U, width: compact ? 1.5 : 2 },
-                { label: 'I (mA)', stroke: COLOR_I, width: compact ? 1.25 : 1.5, scale: 'i' },
+                { label: labelT, value: (_u, v) => fmtTime(v) },
+                { label: labelU, stroke: COLOR_U, width: compact ? 1.5 : 2, value: (_u, v) => fmtU(v) },
+                {
+                  label: labelI,
+                  stroke: COLOR_I,
+                  width: compact ? 1.25 : 1.5,
+                  scale: 'i',
+                  value: (_u, v) => fmtI(v),
+                },
               ],
               axes: [
                 {
@@ -215,6 +251,12 @@ export function LiveChart({
 
     ensurePlotRef.current = ensurePlot
 
+    // Locale/label change must rebuild the plot
+    if (plot.current) {
+      plot.current.destroy()
+      plot.current = null
+    }
+
     let lastFs = parseFloat(getComputedStyle(document.documentElement).fontSize) || 16
     const ro = new ResizeObserver((entries) => {
       const width = Math.floor(entries[0]?.contentRect.width ?? node.clientWidth)
@@ -240,7 +282,7 @@ export function LiveChart({
       plot.current?.destroy()
       plot.current = null
     }
-  }, [title, height, compact, seriesMode])
+  }, [title, height, compact, seriesMode, locale, t])
 
   useEffect(() => {
     if (!plot.current) {

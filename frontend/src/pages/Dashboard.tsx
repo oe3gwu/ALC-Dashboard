@@ -57,15 +57,15 @@ function ChannelCard({ ch }: { ch: number }) {
         )}
       </div>
       <div className="metrics">
-        <div className="metric">
+        <div className="metric metric-u">
           <label>{t('common.voltage')}</label>
           <strong>{fmt(m?.voltage_V)} V</strong>
         </div>
-        <div className="metric">
+        <div className="metric metric-i">
           <label>{t('common.current')}</label>
           <strong>{fmt(m?.current_mA, 1)} mA</strong>
         </div>
-        <div className="metric">
+        <div className="metric metric-c">
           <label>{t('common.capacity')}</label>
           <strong>{fmt(m?.capacity_mAh, 1)} mAh</strong>
         </div>

@@ -47,15 +47,15 @@ export function ChannelDetail() {
       </div>
       <div className="panel page-detail-panel">
         <div className="metrics page-detail-metrics">
-          <div className="metric">
+          <div className="metric metric-u">
             <label>{t('common.voltage')}</label>
             <strong>{m?.voltage_V?.toFixed(3) ?? '—'} V</strong>
           </div>
-          <div className="metric">
+          <div className="metric metric-i">
             <label>{t('common.current')}</label>
             <strong>{m?.current_mA?.toFixed(1) ?? '—'} mA</strong>
           </div>
-          <div className="metric">
+          <div className="metric metric-c">
             <label>{t('common.capacity')}</label>
             <strong>{m?.capacity_mAh?.toFixed(1) ?? '—'} mAh</strong>
           </div>

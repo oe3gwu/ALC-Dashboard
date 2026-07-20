@@ -57,6 +57,10 @@ export const de = {
   'chart.modeCap': 'Cap',
   'chart.titleUi': 'Kanal {n} — U / I',
   'chart.titleCap': 'Kanal {n} — Kapazität',
+  'chart.seriesTime': 'Zeit (s)',
+  'chart.seriesU': 'U (V)',
+  'chart.seriesI': 'I (mA)',
+  'chart.seriesC': 'C (mAh)',
 
   'dash.title': 'Kanäle',
   'dash.startProcess': 'Vorgang starten',

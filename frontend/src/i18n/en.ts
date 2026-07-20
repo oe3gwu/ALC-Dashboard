@@ -59,6 +59,10 @@ export const en: Record<MessageKey, string> = {
   'chart.modeCap': 'Cap',
   'chart.titleUi': 'Channel {n} — U / I',
   'chart.titleCap': 'Channel {n} — Capacity',
+  'chart.seriesTime': 'Time (s)',
+  'chart.seriesU': 'U (V)',
+  'chart.seriesI': 'I (mA)',
+  'chart.seriesC': 'C (mAh)',
 
   'dash.title': 'Channels',
   'dash.startProcess': 'Start process',
