@@ -21,6 +21,8 @@ let channelsSnap: ChannelParams[] = []
 let measurementsSnap: Measurement[] = []
 let intervalId: number | null = null
 let hydrated = false
+/** Last known idle flag per channel — used to reset series on idle→running. */
+const prevIdleByChannel = new Map<number, boolean>()
 
 function isIdle(c: ChannelParams | undefined): boolean {
   if (!c) return true
@@ -182,13 +184,22 @@ export function updateLiveSnapshot(channels: ChannelParams[], measurements: Meas
   channelsSnap = channels
   measurementsSnap = measurements
 
-  // Clear idle channels immediately (stop / finished)
   let cleared = false
   for (const c of channels) {
-    if (isIdle(c) && seriesByChannel.has(c.channel)) {
+    const idle = isIdle(c)
+    // Reset when a new process starts (idle → running). Skip first sighting so F5 hydrate stays.
+    if (prevIdleByChannel.has(c.channel)) {
+      const wasIdle = prevIdleByChannel.get(c.channel)!
+      if (wasIdle && !idle && seriesByChannel.has(c.channel)) {
+        seriesByChannel.delete(c.channel)
+        cleared = true
+      }
+    }
+    if (idle && seriesByChannel.has(c.channel)) {
       seriesByChannel.delete(c.channel)
       cleared = true
     }
+    prevIdleByChannel.set(c.channel, idle)
   }
   if (cleared) {
     persistToSession()

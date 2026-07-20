@@ -20,15 +20,15 @@ function uiPx(px: number): number {
   return Math.round(px * (fs / 16))
 }
 
-function xRange(_u: uPlot, min: number, max: number): [number, number] {
-  if (!Number.isFinite(min) || !Number.isFinite(max)) return [0, MIN_X_SPAN]
-  if (max - min < MIN_X_SPAN) return [min, min + MIN_X_SPAN]
-  return [min, max]
+function xRange(_u: uPlot, _min: number, max: number): [number, number] {
+  // Always pin time origin at 0 (process start)
+  if (!Number.isFinite(max)) return [0, MIN_X_SPAN]
+  return [0, Math.max(max, MIN_X_SPAN)]
 }
 
 /**
- * Absolute Y scale: always include 0 (never zoom into a band that hides zero).
- * Negative values (e.g. discharge current) keep 0 in the middle of the span.
+ * Absolute Y scale: always pin 0 (never zoom into a band that hides zero).
+ * Negative values (e.g. discharge current) keep 0 in the span.
  */
 function absoluteRange(min: number, max: number, fallbackMax: number, padRatio = 0.08): [number, number] {
   if (!Number.isFinite(min) || !Number.isFinite(max)) return [0, fallbackMax]
@@ -37,8 +37,11 @@ function absoluteRange(min: number, max: number, fallbackMax: number, padRatio =
   if (hi === lo) return [0, fallbackMax]
   const pad = Math.max((hi - lo) * padRatio, Number.EPSILON)
   if (lo >= 0) {
+    // Positive-only: floor hard at 0
+    lo = 0
     hi += pad
   } else if (hi <= 0) {
+    hi = 0
     lo -= pad
   } else {
     lo -= pad

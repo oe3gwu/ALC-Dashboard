@@ -3,6 +3,7 @@ import { useNavigate, useSearchParams } from 'react-router-dom'
 import { api } from '../api'
 import { useCapabilities } from '../capabilities'
 import { useLocale } from '../locale'
+import { clearSeries } from '../liveSeries'
 
 const SLOT_MANUAL = 0x28
 
@@ -147,6 +148,7 @@ export function StartProcess() {
         const res = await api.preview(payload())
         setPreview({ device: res.device, corrections: res.corrections })
       }
+      clearSeries(form.channel)
       await api.start(payload())
       navigate('/')
     } catch (e) {
