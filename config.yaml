@@ -3,11 +3,11 @@ port: 8080
 serial_port: ''
 baudrate: 38400
 device_model: alc8500_2_expert
-simulator: false
+simulator: true
 poll_interval: 1.5
 data_dir: data
 usb_hints:
 - vendor_id: '0403'
   product_id: F06E
-- vendor_id: 18EF
+- vendor_id: '18EF'
   product_id: E030
