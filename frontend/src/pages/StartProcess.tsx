@@ -1,7 +1,8 @@
 import { useEffect, useMemo, useState } from 'react'
 import { useNavigate, useSearchParams } from 'react-router-dom'
-import { api } from '../api'
+import { api, type ChannelParams } from '../api'
 import { useCapabilities } from '../capabilities'
+import { useLive } from '../live'
 import { useLocale } from '../locale'
 import type { MessageKey } from '../i18n'
 import { clearSeries } from '../liveSeries'
@@ -117,10 +118,29 @@ function formFromDeviceEcho(device: Record<string, unknown>, prev: Form): Form {
   }
 }
 
+/** Load stored channel params from device into the start form (does not start). */
+function formFromDeviceStored(device: ChannelParams, prev: Form): Form {
+  return {
+    ...prev,
+    battery_slot: SLOT_MANUAL,
+    battery_type: device.battery_type,
+    cells: device.cells,
+    capacity_mAh: device.capacity_mAh,
+    charge_mA: device.charge_mA,
+    discharge_mA: device.discharge_mA,
+    pause_s: device.pause_s,
+    forming_mA: device.forming_mA,
+    full_factor: device.full_factor,
+    program: device.program,
+    activator: Boolean(device.activator),
+  }
+}
+
 export function StartProcess() {
   const navigate = useNavigate()
   const [sp] = useSearchParams()
   const { t } = useLocale()
+  const { connection } = useLive()
   const { capabilities, batteryTypes, programs } = useCapabilities()
   const [meta, setMeta] = useState<{ battery_types: Record<string, string>; programs: Record<string, string> } | null>(null)
   const [presets, setPresets] = useState<Record<string, unknown>[]>([])
@@ -136,6 +156,7 @@ export function StartProcess() {
     { requested: unknown; device: unknown }
   > | null>(null)
   const [err, setErr] = useState('')
+  const [msg, setMsg] = useState('')
   const [busy, setBusy] = useState(false)
 
   const activatorCh = capabilities.activator_channel
@@ -162,6 +183,7 @@ export function StartProcess() {
   const set = (k: keyof Form, v: number | boolean) => {
     setPreview(null)
     setPendingCorrections(null)
+    setMsg('')
     // Manual edit leaves preset values but drops DB association in the UI.
     if (k !== 'channel' && k !== 'activator' && k !== 'program') {
       setSelectedPresetSlot(SLOT_MANUAL)
@@ -172,6 +194,7 @@ export function StartProcess() {
   const setChannel = (ch: number) => {
     setPreview(null)
     setPendingCorrections(null)
+    setMsg('')
     setForm((f) => ({
       ...f,
       channel: ch,
@@ -182,6 +205,7 @@ export function StartProcess() {
   const selectPreset = (slot: number) => {
     setPreview(null)
     setPendingCorrections(null)
+    setMsg('')
     setSelectedPresetSlot(slot)
     if (slot === SLOT_MANUAL) {
       setForm((f) => ({ ...f, battery_slot: SLOT_MANUAL }))
@@ -193,6 +217,28 @@ export function StartProcess() {
     } else {
       // Unknown slot: still write explicitly as manual to avoid FW slot reload.
       setForm((f) => ({ ...f, battery_slot: SLOT_MANUAL }))
+    }
+  }
+
+  const loadFromDevice = async () => {
+    setErr('')
+    setMsg('')
+    setBusy(true)
+    try {
+      const device = await api.getChannel(form.channel)
+      if (device.battery_type === 0xff) {
+        setErr(t('start.noDeviceConfig'))
+        return
+      }
+      setForm((f) => formFromDeviceStored(device, f))
+      setSelectedPresetSlot(SLOT_MANUAL)
+      setPreview(null)
+      setPendingCorrections(null)
+      setMsg(t('start.loadedFromDevice'))
+    } catch (e) {
+      setErr(String((e as Error).message || e))
+    } finally {
+      setBusy(false)
     }
   }
 
@@ -342,6 +388,13 @@ export function StartProcess() {
               </select>
             </label>
           </div>
+          {connection?.connected && (
+            <div className="row" style={{ marginTop: '0.55rem' }}>
+              <button type="button" disabled={busy} onClick={() => void loadFromDevice()}>
+                {t('start.loadFromDevice')}
+              </button>
+            </div>
+          )}
         </section>
 
         <section className="start-section">
@@ -488,6 +541,7 @@ export function StartProcess() {
             {t('start.accepted')}
           </div>
         )}
+        {msg && <div className="toast ok">{msg}</div>}
         {err && <div className="toast error">{err}</div>}
       </div>
 

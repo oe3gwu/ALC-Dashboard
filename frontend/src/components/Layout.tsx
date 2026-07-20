@@ -181,6 +181,12 @@ export function Layout() {
             )
           })}
         </nav>
+
+        <footer className="sidebar-credit">
+          <span>{t('sidebar.creditAuthor')}</span>
+          <span>{t('sidebar.creditLicense')}</span>
+          <span>{t('sidebar.creditAi')}</span>
+        </footer>
       </aside>
       <main className="main">
         <Outlet />

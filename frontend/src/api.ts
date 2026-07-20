@@ -132,6 +132,7 @@ export const api = {
     req('/api/connection/connect', { method: 'POST', body: JSON.stringify(body) }),
   disconnect: () => req('/api/connection/disconnect', { method: 'POST' }),
   live: () => req<LivePayload>('/api/live'),
+  getChannel: (ch: number) => req<ChannelParams>(`/api/channels/${ch}`),
   setChannel: (ch: number, body: Record<string, unknown>) =>
     req<{ params: ChannelParams; corrections: Record<string, { requested: unknown; device: unknown }> }>(`/api/channels/${ch}`, {
       method: 'PUT',
