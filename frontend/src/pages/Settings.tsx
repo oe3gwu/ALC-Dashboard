@@ -200,7 +200,7 @@ export function Settings() {
       <div className="panel">
         <h2>{t('set.connection')}</h2>
         <div className="form-grid">
-        <label className="field">
+        <label className="field field-device">
           {t('set.device')}
           <select value={model} onChange={(e) => setModel(e.target.value)}>
             {(devices.length ? devices : [{ id: model, label: model, enabled: true, disabled_reason: '' }]).map((d) => (

@@ -2,12 +2,19 @@ import { useCallback, useState, type ReactNode } from 'react'
 import { api } from '../api'
 import { useCapabilities } from '../capabilities'
 import { useLocale } from '../locale'
+import {
+  CHEM_RANGES,
+  clampChem,
+  clampChemRecord,
+  formatChemValue,
+  type ChemRangeKey,
+} from '../chemistryRanges'
 
 /**
  * ELV factory voltage defaults from ELV Firm-/Software-Upgrade ALC 8500 Expert-2.
  * Pause / cycles / −ΔU: previous software defaults (not numeric in ELV PDF tables).
  */
-const ELV_FACTORY_G: Record<string, number> = {
+const ELV_FACTORY_G: Record<string, number> = clampChemRecord({
   discharge_NiCd_mV: 900,
   discharge_NiMH_mV: 900,
   discharge_LiIon_mV: 3000,
@@ -20,25 +27,25 @@ const ELV_FACTORY_G: Record<string, number> = {
   cycles_form_NiMH: 5,
   dU_NiCd: 40,
   dU_NiMH: 20,
-}
+})
 
-const ELV_FACTORY_H: Record<string, number> = {
+const ELV_FACTORY_H: Record<string, number> = clampChemRecord({
   charge_LiIon_mV: 4100,
   maintain_LiIon_mV: 4050,
   charge_LiPo_mV: 4200,
   maintain_LiPo_mV: 4150,
   charge_Pb_mV: 2350,
   maintain_Pb_mV: 2260,
-}
+})
 
-const ELV_FACTORY_J: Record<string, number> = {
+const ELV_FACTORY_J: Record<string, number> = clampChemRecord({
   discharge_LiFePO4_mV: 2300,
   charge_LiFePO4_mV: 3650,
   maintain_LiFePO4_mV: 3450,
-}
+})
 
 /** Longevity-oriented: earlier cut-off, lower charge voltage — less capacity, kinder to cells. */
-const GENTLE_G: Record<string, number> = {
+const GENTLE_G: Record<string, number> = clampChemRecord({
   discharge_NiCd_mV: 1000,
   discharge_NiMH_mV: 1000,
   discharge_LiIon_mV: 3100,
@@ -51,29 +58,61 @@ const GENTLE_G: Record<string, number> = {
   cycles_form_NiMH: 3,
   dU_NiCd: 25,
   dU_NiMH: 12,
-}
+})
 
-const GENTLE_H: Record<string, number> = {
+const GENTLE_H: Record<string, number> = clampChemRecord({
   charge_LiIon_mV: 4000,
   maintain_LiIon_mV: 3950,
   charge_LiPo_mV: 4100,
   maintain_LiPo_mV: 4050,
   charge_Pb_mV: 2350,
   maintain_Pb_mV: 2260,
-}
+})
 
-const GENTLE_J: Record<string, number> = {
+const GENTLE_J: Record<string, number> = clampChemRecord({
   discharge_LiFePO4_mV: 2400,
   charge_LiFePO4_mV: 3600,
   maintain_LiFePO4_mV: 3400,
-}
+})
 
 function pickLiFe(j: Record<string, number | boolean>): Record<string, number> {
-  return {
+  return clampChemRecord({
     discharge_LiFePO4_mV: Number(j.discharge_LiFePO4_mV ?? 0),
     charge_LiFePO4_mV: Number(j.charge_LiFePO4_mV ?? 0),
     maintain_LiFePO4_mV: Number(j.maintain_LiFePO4_mV ?? 0),
-  }
+  })
+}
+
+function ChemSlider({
+  label,
+  rangeKey,
+  value,
+  onChange,
+}: {
+  label: string
+  rangeKey: ChemRangeKey
+  value: number
+  onChange: (v: number) => void
+}) {
+  const r = CHEM_RANGES[rangeKey]
+  const v = clampChem(rangeKey, value)
+  return (
+    <label className="field field-span-2">
+      {label}
+      <div className="setup-slider-row">
+        <input
+          type="range"
+          className="setup-slider"
+          min={r.min}
+          max={r.max}
+          step={r.step}
+          value={v}
+          onChange={(e) => onChange(clampChem(rangeKey, Number(e.target.value)))}
+        />
+        <span className="setup-slider-value">{formatChemValue(rangeKey, v)}</span>
+      </div>
+    </label>
+  )
 }
 
 export function ChemistryParams() {
@@ -90,8 +129,8 @@ export function ChemistryParams() {
 
   const load = useCallback(async () => {
     const res = await api.deviceParams()
-    setG(res.g)
-    setH(res.h)
+    setG(clampChemRecord({ ...res.g }))
+    setH(clampChemRecord({ ...res.h }))
     setJ(pickLiFe(res.j))
     setFromDevice(true)
   }, [])
@@ -116,35 +155,41 @@ export function ChemistryParams() {
     setMsg('')
     setBusy(true)
     try {
+      const cg = clampChemRecord({ ...g })
+      const ch = clampChemRecord({ ...h })
+      const cj = clampChemRecord({ ...j })
+      setG(cg)
+      setH(ch)
+      setJ(cj)
       await api.putG({
-        discharge_NiCd_mV: g.discharge_NiCd_mV,
-        discharge_NiMH_mV: g.discharge_NiMH_mV,
-        discharge_LiIon_mV: g.discharge_LiIon_mV,
-        discharge_LiPo_mV: g.discharge_LiPo_mV,
-        discharge_Pb_mV: g.discharge_Pb_mV,
-        pause_min: g.pause_min,
-        cycles_cycle_NiCd: g.cycles_cycle_NiCd,
-        cycles_cycle_NiMH: g.cycles_cycle_NiMH,
-        cycles_form_NiCd: g.cycles_form_NiCd,
-        cycles_form_NiMH: g.cycles_form_NiMH,
-        dU_NiCd: g.dU_NiCd,
-        dU_NiMH: g.dU_NiMH,
+        discharge_NiCd_mV: cg.discharge_NiCd_mV,
+        discharge_NiMH_mV: cg.discharge_NiMH_mV,
+        discharge_LiIon_mV: cg.discharge_LiIon_mV,
+        discharge_LiPo_mV: cg.discharge_LiPo_mV,
+        discharge_Pb_mV: cg.discharge_Pb_mV,
+        pause_min: cg.pause_min,
+        cycles_cycle_NiCd: cg.cycles_cycle_NiCd,
+        cycles_cycle_NiMH: cg.cycles_cycle_NiMH,
+        cycles_form_NiCd: cg.cycles_form_NiCd,
+        cycles_form_NiMH: cg.cycles_form_NiMH,
+        dU_NiCd: cg.dU_NiCd,
+        dU_NiMH: cg.dU_NiMH,
       })
       if (showHj) {
         await api.putH({
-          charge_LiIon_mV: h.charge_LiIon_mV,
-          maintain_LiIon_mV: h.maintain_LiIon_mV,
-          charge_LiPo_mV: h.charge_LiPo_mV,
-          maintain_LiPo_mV: h.maintain_LiPo_mV,
-          charge_Pb_mV: h.charge_Pb_mV,
-          maintain_Pb_mV: h.maintain_Pb_mV,
+          charge_LiIon_mV: ch.charge_LiIon_mV,
+          maintain_LiIon_mV: ch.maintain_LiIon_mV,
+          charge_LiPo_mV: ch.charge_LiPo_mV,
+          maintain_LiPo_mV: ch.maintain_LiPo_mV,
+          charge_Pb_mV: ch.charge_Pb_mV,
+          maintain_Pb_mV: ch.maintain_Pb_mV,
         })
         // Preserve device display/setup bytes that share the j frame.
         const cur = await api.deviceParams()
         await api.putJ({
-          discharge_LiFePO4_mV: j.discharge_LiFePO4_mV,
-          charge_LiFePO4_mV: j.charge_LiFePO4_mV,
-          maintain_LiFePO4_mV: j.maintain_LiFePO4_mV,
+          discharge_LiFePO4_mV: cj.discharge_LiFePO4_mV,
+          charge_LiFePO4_mV: cj.charge_LiFePO4_mV,
+          maintain_LiFePO4_mV: cj.maintain_LiFePO4_mV,
           illumination: cur.j.illumination,
           alarm_beep: cur.j.alarm_beep,
           button_beep: cur.j.button_beep,
@@ -167,9 +212,9 @@ export function ChemistryParams() {
     okKey: 'chem.factoryOk' | 'chem.gentleOk',
   ) => {
     setErr('')
-    setG({ ...gPreset })
-    setH({ ...hPreset })
-    setJ({ ...jPreset })
+    setG(clampChemRecord({ ...gPreset }))
+    setH(clampChemRecord({ ...hPreset }))
+    setJ(clampChemRecord({ ...jPreset }))
     setFromDevice(false)
     setMsg(t(okKey))
   }
@@ -177,21 +222,9 @@ export function ChemistryParams() {
   const doElvFactory = () => loadPreset(ELV_FACTORY_G, ELV_FACTORY_H, ELV_FACTORY_J, 'chem.factoryOk')
   const doGentle = () => loadPreset(GENTLE_G, GENTLE_H, GENTLE_J, 'chem.gentleOk')
 
-  const numField = (
-    obj: Record<string, number>,
-    setObj: (v: Record<string, number>) => void,
-    key: string,
-    label: string,
-  ) => (
-    <label className="field" key={key}>
-      {label}
-      <input
-        type="number"
-        value={Number(obj[key] ?? 0)}
-        onChange={(e) => setObj({ ...obj, [key]: Number(e.target.value) })}
-      />
-    </label>
-  )
+  const setGKey = (key: ChemRangeKey, v: number) => setG((prev) => ({ ...prev, [key]: v }))
+  const setHKey = (key: ChemRangeKey, v: number) => setH((prev) => ({ ...prev, [key]: v }))
+  const setJKey = (key: ChemRangeKey, v: number) => setJ((prev) => ({ ...prev, [key]: v }))
 
   const typePanel = (title: string, fields: ReactNode) => (
     <div className="panel">
@@ -243,31 +276,86 @@ export function ChemistryParams() {
       {typePanel(
         t('chem.groupNiCd'),
         <>
-          {numField(g, setG, 'discharge_NiCd_mV', t('chem.discharge'))}
-          {numField(g, setG, 'dU_NiCd', t('chem.dU'))}
-          {numField(g, setG, 'cycles_cycle_NiCd', t('chem.cyclesCycle'))}
-          {numField(g, setG, 'cycles_form_NiCd', t('chem.cyclesForm'))}
+          <ChemSlider
+            label={t('chem.dischargeCutoff')}
+            rangeKey="discharge_NiCd_mV"
+            value={g.discharge_NiCd_mV}
+            onChange={(v) => setGKey('discharge_NiCd_mV', v)}
+          />
+          <ChemSlider
+            label={t('chem.dU')}
+            rangeKey="dU_NiCd"
+            value={g.dU_NiCd}
+            onChange={(v) => setGKey('dU_NiCd', v)}
+          />
+          <ChemSlider
+            label={t('chem.cyclesCycle')}
+            rangeKey="cycles_cycle_NiCd"
+            value={g.cycles_cycle_NiCd}
+            onChange={(v) => setGKey('cycles_cycle_NiCd', v)}
+          />
+          <ChemSlider
+            label={t('chem.cyclesForm')}
+            rangeKey="cycles_form_NiCd"
+            value={g.cycles_form_NiCd}
+            onChange={(v) => setGKey('cycles_form_NiCd', v)}
+          />
         </>,
       )}
 
       {typePanel(
         t('chem.groupNiMH'),
         <>
-          {numField(g, setG, 'discharge_NiMH_mV', t('chem.discharge'))}
-          {numField(g, setG, 'dU_NiMH', t('chem.dU'))}
-          {numField(g, setG, 'cycles_cycle_NiMH', t('chem.cyclesCycle'))}
-          {numField(g, setG, 'cycles_form_NiMH', t('chem.cyclesForm'))}
+          <ChemSlider
+            label={t('chem.dischargeCutoff')}
+            rangeKey="discharge_NiMH_mV"
+            value={g.discharge_NiMH_mV}
+            onChange={(v) => setGKey('discharge_NiMH_mV', v)}
+          />
+          <ChemSlider
+            label={t('chem.dU')}
+            rangeKey="dU_NiMH"
+            value={g.dU_NiMH}
+            onChange={(v) => setGKey('dU_NiMH', v)}
+          />
+          <ChemSlider
+            label={t('chem.cyclesCycle')}
+            rangeKey="cycles_cycle_NiMH"
+            value={g.cycles_cycle_NiMH}
+            onChange={(v) => setGKey('cycles_cycle_NiMH', v)}
+          />
+          <ChemSlider
+            label={t('chem.cyclesForm')}
+            rangeKey="cycles_form_NiMH"
+            value={g.cycles_form_NiMH}
+            onChange={(v) => setGKey('cycles_form_NiMH', v)}
+          />
         </>,
       )}
 
       {typePanel(
         t('chem.groupLi41'),
         <>
-          {numField(g, setG, 'discharge_LiIon_mV', t('chem.discharge'))}
+          <ChemSlider
+            label={t('chem.dischargeCutoff')}
+            rangeKey="discharge_LiIon_mV"
+            value={g.discharge_LiIon_mV}
+            onChange={(v) => setGKey('discharge_LiIon_mV', v)}
+          />
           {showHj && (
             <>
-              {numField(h, setH, 'charge_LiIon_mV', t('chem.charge'))}
-              {numField(h, setH, 'maintain_LiIon_mV', t('chem.maintain'))}
+              <ChemSlider
+                label={t('chem.chargeVoltage')}
+                rangeKey="charge_LiIon_mV"
+                value={h.charge_LiIon_mV}
+                onChange={(v) => setHKey('charge_LiIon_mV', v)}
+              />
+              <ChemSlider
+                label={t('chem.maintainVoltage')}
+                rangeKey="maintain_LiIon_mV"
+                value={h.maintain_LiIon_mV}
+                onChange={(v) => setHKey('maintain_LiIon_mV', v)}
+              />
             </>
           )}
         </>,
@@ -276,11 +364,26 @@ export function ChemistryParams() {
       {typePanel(
         t('chem.groupLi42'),
         <>
-          {numField(g, setG, 'discharge_LiPo_mV', t('chem.discharge'))}
+          <ChemSlider
+            label={t('chem.dischargeCutoff')}
+            rangeKey="discharge_LiPo_mV"
+            value={g.discharge_LiPo_mV}
+            onChange={(v) => setGKey('discharge_LiPo_mV', v)}
+          />
           {showHj && (
             <>
-              {numField(h, setH, 'charge_LiPo_mV', t('chem.charge'))}
-              {numField(h, setH, 'maintain_LiPo_mV', t('chem.maintain'))}
+              <ChemSlider
+                label={t('chem.chargeVoltage')}
+                rangeKey="charge_LiPo_mV"
+                value={h.charge_LiPo_mV}
+                onChange={(v) => setHKey('charge_LiPo_mV', v)}
+              />
+              <ChemSlider
+                label={t('chem.maintainVoltage')}
+                rangeKey="maintain_LiPo_mV"
+                value={h.maintain_LiPo_mV}
+                onChange={(v) => setHKey('maintain_LiPo_mV', v)}
+              />
             </>
           )}
         </>,
@@ -289,11 +392,26 @@ export function ChemistryParams() {
       {typePanel(
         t('chem.groupPb'),
         <>
-          {numField(g, setG, 'discharge_Pb_mV', t('chem.discharge'))}
+          <ChemSlider
+            label={t('chem.dischargeCutoff')}
+            rangeKey="discharge_Pb_mV"
+            value={g.discharge_Pb_mV}
+            onChange={(v) => setGKey('discharge_Pb_mV', v)}
+          />
           {showHj && (
             <>
-              {numField(h, setH, 'charge_Pb_mV', t('chem.charge'))}
-              {numField(h, setH, 'maintain_Pb_mV', t('chem.maintain'))}
+              <ChemSlider
+                label={t('chem.chargeVoltage')}
+                rangeKey="charge_Pb_mV"
+                value={h.charge_Pb_mV}
+                onChange={(v) => setHKey('charge_Pb_mV', v)}
+              />
+              <ChemSlider
+                label={t('chem.maintainVoltage')}
+                rangeKey="maintain_Pb_mV"
+                value={h.maintain_Pb_mV}
+                onChange={(v) => setHKey('maintain_Pb_mV', v)}
+              />
             </>
           )}
         </>,
@@ -303,13 +421,38 @@ export function ChemistryParams() {
         typePanel(
           t('chem.groupLiFe'),
           <>
-            {numField(j, setJ, 'discharge_LiFePO4_mV', t('chem.discharge'))}
-            {numField(j, setJ, 'charge_LiFePO4_mV', t('chem.charge'))}
-            {numField(j, setJ, 'maintain_LiFePO4_mV', t('chem.maintain'))}
+            <ChemSlider
+              label={t('chem.dischargeCutoff')}
+              rangeKey="discharge_LiFePO4_mV"
+              value={j.discharge_LiFePO4_mV}
+              onChange={(v) => setJKey('discharge_LiFePO4_mV', v)}
+            />
+            <ChemSlider
+              label={t('chem.chargeVoltage')}
+              rangeKey="charge_LiFePO4_mV"
+              value={j.charge_LiFePO4_mV}
+              onChange={(v) => setJKey('charge_LiFePO4_mV', v)}
+            />
+            <ChemSlider
+              label={t('chem.maintainVoltage')}
+              rangeKey="maintain_LiFePO4_mV"
+              value={j.maintain_LiFePO4_mV}
+              onChange={(v) => setJKey('maintain_LiFePO4_mV', v)}
+            />
           </>,
         )}
 
-      {typePanel(t('chem.groupGeneral'), <>{numField(g, setG, 'pause_min', t('chem.pauseMin'))}</>)}
+      {typePanel(
+        t('chem.groupGeneral'),
+        <>
+          <ChemSlider
+            label={t('chem.pauseMin')}
+            rangeKey="pause_min"
+            value={g.pause_min}
+            onChange={(v) => setGKey('pause_min', v)}
+          />
+        </>,
+      )}
 
       <div className="row chem-actions chem-actions-footer">
         <button type="button" className="primary-danger" onClick={doApply} disabled={busy}>

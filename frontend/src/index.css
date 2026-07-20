@@ -860,6 +860,15 @@ label.field input.corrected {
 .form-grid .field-span-2 {
   grid-column: 1 / -1;
 }
+.form-grid .field-device {
+  min-width: 16rem;
+  grid-column: span 2;
+}
+.form-grid .field-device select {
+  min-width: 0;
+  width: 100%;
+  padding-right: 1.75rem;
+}
 .setup-slider-row {
   display: flex;
   align-items: center;
