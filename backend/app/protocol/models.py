@@ -236,9 +236,18 @@ class BatteryDbEntry:
         )
 
     def encode_fw208(self) -> bytes:
-        """FW 2.08 (Ident h) wire layout: Cap, Id, Ic — no full_factor (25 bytes)."""
+        """FW 2.08 (Ident h) DB layout: Cap, Id, Ic, pause, flags, full_factor, function (25 B).
+
+        Real device ``d`` replies (e.g. AUTO slot) end with ``flags | full | 0xFF`` — there is
+        no forming-current field in this layout (unlike classic 26-byte Id/Ic/Cap frames).
+        """
         name = self.name.encode("latin-1", errors="replace")[:9]
         name = name.ljust(9, b" ")
+        ff = int(self.full_factor)
+        if ff <= 0 or ff >= 250:
+            ff = 0
+        else:
+            ff = ff & 0xFF
         return (
             bytes([self.slot & 0xFF])
             + name
@@ -247,15 +256,14 @@ class BatteryDbEntry:
             + pack_u16(current_to_digits(self.discharge_mA))
             + pack_u16(current_to_digits(self.charge_mA))
             + pack_u16(self.pause_s)
-            + pack_u16(current_to_digits(self.forming_mA))
-            + bytes([self.flags & 0xFF])
+            + bytes([self.flags & 0xFF, ff, 0xFF])
         )
 
     @classmethod
     def decode(cls, data: bytes) -> BatteryDbEntry:
-        # Classic / simulator: 26 bytes incl. full_factor.
-        # FW 2.08 (Ident h): 25 bytes, no full_factor (same as alc8xxx article layout).
-        if len(data) < 25:
+        # Classic / simulator: 26 bytes — Id, Ic, Cap, pause, forming, flags, full.
+        # FW 2.08 (Ident h): 25 bytes — Cap, Id, Ic, pause, flags, full, function (no forming).
+        if len(data) < 24:
             raise ValueError("Datenbank-Eintrag zu kurz")
         slot = data[0]
         name = data[1:10].split(b"\x00", 1)[0].decode("latin-1", errors="replace").strip()
@@ -264,7 +272,7 @@ class BatteryDbEntry:
         o += 1
         cells = data[o]
         o += 1
-        # Documented order: Id, Ic, Cap. Some FW 2.08 entries store Cap, Id, Ic instead.
+        # Documented order: Id, Ic, Cap. FW 2.08 occupied slots store Cap, Id, Ic instead.
         Id = u16(data, o)
         Ic = u16(data, o + 2)
         Cap = u32(data, o + 4)
@@ -275,11 +283,28 @@ class BatteryDbEntry:
         o += 8
         pause = u16(data, o)
         o += 2
-        If = u16(data, o) if len(data) >= o + 2 else 0
-        o += 2
-        flags = data[o] if len(data) > o else 0
-        o += 1
-        full = data[o] if len(data) > o else 250
+        rest = len(data) - o
+        forming = 0.0
+        flags = 0
+        full = 250
+        if rest >= 4:
+            # Classic trailer: forming(2) + flags + full
+            forming = current_from_digits(u16(data, o)) or 0.0
+            o += 2
+            flags = data[o]
+            o += 1
+            full = data[o] if len(data) > o else 250
+        elif rest >= 2:
+            # FW 2.08 trailer: flags + full [+ function 0xFF]
+            flags = data[o]
+            o += 1
+            full = data[o]
+            o += 1
+        elif rest == 1:
+            flags = data[o]
+        # Wire 0 = off (same idea as channel P on this FW)
+        if full == 0:
+            full = 250
         if btype == 0xFF:
             return cls(
                 slot=slot,
@@ -303,7 +328,7 @@ class BatteryDbEntry:
             charge_mA=current_from_digits(Ic) or 0.0,
             capacity_mAh=capacity_from_digits(Cap),
             pause_s=pause,
-            forming_mA=current_from_digits(If) or 0.0,
+            forming_mA=forming,
             flags=flags,
             full_factor=full,
         )

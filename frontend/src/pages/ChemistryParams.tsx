@@ -120,19 +120,14 @@ export function ChemistryParams() {
     }
   }
 
-  const doDefaults = async () => {
+  const doDefaults = () => {
     setErr('')
     setMsg('')
-    setBusy(true)
-    try {
-      await api.restoreDefaults()
-      await load()
-      setMsg(t('chem.defaultsOk'))
-    } catch (e) {
-      setErr(String((e as Error).message || e))
-    } finally {
-      setBusy(false)
-    }
+    setG({ ...DEFAULT_G })
+    setH({ ...DEFAULT_H })
+    setJ({ ...DEFAULT_J })
+    setFromDevice(false)
+    setMsg(t('chem.defaultsOk'))
   }
 
   const numField = (

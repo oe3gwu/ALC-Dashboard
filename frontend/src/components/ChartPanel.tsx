@@ -15,7 +15,14 @@ export function ChartPanel({
 }) {
   return (
     <div className={`chart-panel${compact ? ' chart-panel-compact' : ''}`}>
-      <LiveChart points={points} title={title} height={height} compact={compact} seriesMode={seriesMode} />
+      <LiveChart
+        key={seriesMode}
+        points={points}
+        title={title}
+        height={height}
+        compact={compact}
+        seriesMode={seriesMode}
+      />
     </div>
   )
 }

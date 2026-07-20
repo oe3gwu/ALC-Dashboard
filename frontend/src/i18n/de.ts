@@ -87,6 +87,11 @@ export const de = {
   'start.start': 'Vorgang starten',
   'start.corrected': 'Gerät hat Werte korrigiert (rot):',
   'start.accepted': 'Parameter akzeptiert — bereit zum Start.',
+  'start.confirmTitle': 'Werte korrigiert',
+  'start.confirmLead':
+    'Das Gerät hat Parameter angepasst (z. B. maximaler Strom). Bitte bestätigen, bevor der Vorgang startet.',
+  'start.confirmCancel': 'Abbrechen',
+  'start.confirmStart': 'Trotzdem starten',
 
   'detail.allChannels': 'Alle Kanäle',
   'detail.startProcess': 'Vorgang starten',
@@ -134,7 +139,7 @@ export const de = {
   'chem.defaults': 'Vorgabewerte',
   'chem.readOk': 'Vom Gerät eingelesen',
   'chem.applyOk': 'Parameter übernommen',
-  'chem.defaultsOk': 'Vorgabewerte wiederhergestellt',
+  'chem.defaultsOk': 'Vorgabewerte ins Formular geladen — noch nicht auf dem Gerät. Mit „Übernehmen“ speichern.',
   'chem.sectionG': 'Entladung / −ΔU / Zyklen (g)',
   'chem.sectionH': 'Lade-/Erhaltespannungen (h)',
   'chem.sectionJ': 'LiFePO4 / Setup (j)',

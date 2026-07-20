@@ -89,6 +89,11 @@ export const en: Record<MessageKey, string> = {
   'start.start': 'Start process',
   'start.corrected': 'Device corrected values (red):',
   'start.accepted': 'Parameters accepted — ready to start.',
+  'start.confirmTitle': 'Values corrected',
+  'start.confirmLead':
+    'The device adjusted parameters (e.g. maximum current). Please confirm before starting the process.',
+  'start.confirmCancel': 'Cancel',
+  'start.confirmStart': 'Start anyway',
 
   'detail.allChannels': 'All channels',
   'detail.startProcess': 'Start process',
@@ -136,7 +141,7 @@ export const en: Record<MessageKey, string> = {
   'chem.defaults': 'Defaults',
   'chem.readOk': 'Read from device',
   'chem.applyOk': 'Parameters applied',
-  'chem.defaultsOk': 'Defaults restored',
+  'chem.defaultsOk': 'Defaults loaded into the form — not on the device yet. Click “Apply” to save.',
   'chem.sectionG': 'Discharge / −ΔU / cycles (g)',
   'chem.sectionH': 'Charge / maintain voltages (h)',
   'chem.sectionJ': 'LiFePO4 / setup (j)',

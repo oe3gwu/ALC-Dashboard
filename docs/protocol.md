@@ -50,7 +50,7 @@ Verified against ALC 8500-2 Expert hardware:
 |-------|----------|
 | Measurements `m` | Per channel: request `m` + ch; reply `m` + ch + U/I/C (bare `m` often NAK). Client auto-detects vs classic 32-byte all-channel reply. |
 | Activity `a` | Often `ch` + `stage` only (no action byte) |
-| Battery DB `d`/`D` | 25-byte entries, no `full_factor`; some slots store Cap before Id/Ic; write via Cap→Id→Ic layout |
+| Battery DB `d`/`D` | 25-byte Cap→Id→Ic entries: trailer is `flags` + `full_factor` + `0xFF` (no forming). Older decode wrongly treated trailer as forming and dropped Vollfaktor (UI showed Aus). |
 | Channel `P` Vollfaktor | Off is stored as `0` (API still uses `250` = off); forming current may be floored by device |
 | Ident `u` | Pad bytes may be `FFh` instead of `00h`; FW string starts with Ident letter (`h`) |
 | Logger `v` | NAK under poll race — client retries after a `p` probe; may lack classic 3-record header |

@@ -57,19 +57,26 @@ class ProtocolClient:
         return fw, sn
 
     def get_channel_params(self, channel: int) -> ChannelParams:
-        body = self._req(bytes([ord("p"), channel & 0xFF]))
+        ch = channel & 0xFF
+        body = self._req(bytes([ord("p"), ch]))
         if not body or body[0] not in (ord("p"), ord("P")):
             raise ValueError(f"Unerwartete Antwort auf p: {body!r}")
-        return ChannelParams.decode(body[1:])
+        params = ChannelParams.decode(body[1:])
+        # FW may echo a wrong channel byte; trust the requested index.
+        params.channel = ch
+        return params
 
     def set_channel_params(self, params: ChannelParams) -> ChannelParams:
         body = self._req(bytes([ord("P")]) + params.encode_set(), timeout=3.0)
         if not body or body[0] not in (ord("p"), ord("P")):
             raise ValueError(f"Unerwartete Antwort auf P: {body!r}")
-        return ChannelParams.decode(body[1:])
+        out = ChannelParams.decode(body[1:])
+        out.channel = params.channel & 0xFF
+        return out
 
     def get_activity(self, channel: int) -> ActivityState:
-        body = self._req(bytes([ord("a"), channel & 0xFF]))
+        ch = channel & 0xFF
+        body = self._req(bytes([ord("a"), ch]))
         if not body or body[0] not in (ord("a"), ord("A")):
             raise ValueError(f"Unerwartete Antwort auf a: {body!r}")
         data = body[1:]
@@ -77,8 +84,8 @@ class ProtocolClient:
             raise ValueError("Aktivitätsantwort zu kurz")
         # Classic manual: ch + action + stage. FW 2.08 (Ident h): ch + stage only.
         if len(data) >= 3:
-            return ActivityState(channel=data[0], action=data[1], stage=data[2])
-        return ActivityState(channel=data[0], action=0, stage=data[1])
+            return ActivityState(channel=ch, action=data[1], stage=data[2])
+        return ActivityState(channel=ch, action=0, stage=data[1])
 
     def set_activity(self, channel: int, stop: bool = False) -> ActivityState:
         action = 0x01 if stop else 0x00
@@ -93,8 +100,11 @@ class ProtocolClient:
         return ActivityState(channel=data[0] if data else channel, action=action, stage=0)
 
     def _parse_measurement(self, channel: int, data: bytes) -> ChannelMeasurement:
+        # Short/corrupt frames must not become V=0/I=0 (looks like a real reading on charts).
         if len(data) < 8:
-            return ChannelMeasurement(channel=channel, voltage_V=0.0, current_mA=0.0, capacity_mAh=0.0)
+            return ChannelMeasurement(
+                channel=channel, voltage_V=None, current_mA=None, capacity_mAh=None
+            )
         u = u16(data, 0)
         i = u16(data, 2)
         c = u32(data, 4)
@@ -122,7 +132,9 @@ class ProtocolClient:
         if len(data) >= 32:
             return [self._parse_measurement(ch, data[ch * 8 : ch * 8 + 8]) for ch in range(4)]
 
-        # Per-channel (FW 2.08): optional echoed channel byte + 8 payload bytes
+        # Per-channel (FW 2.08): optional echoed channel byte + 8 payload bytes.
+        # Only strip the prefix when the payload is long enough — never when U_hi happens
+        # to equal the channel index in an 8-byte frame.
         out: list[ChannelMeasurement] = []
         for ch in range(4):
             if ch == 0:
@@ -132,7 +144,7 @@ class ProtocolClient:
                 if not body or body[0] not in (ord("m"), ord("M")):
                     raise ValueError(f"Unerwartete Antwort auf m/{ch}: {body!r}")
                 chunk = body[1:]
-            if chunk and chunk[0] == ch and len(chunk) >= 9:
+            if len(chunk) >= 9 and chunk[0] == ch:
                 chunk = chunk[1:]
             out.append(self._parse_measurement(ch, chunk))
         return out

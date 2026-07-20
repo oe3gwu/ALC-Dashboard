@@ -241,6 +241,8 @@ def update_config(body: ConfigUpdate) -> dict[str, Any]:
 def _channel_live_dict(client: Any, channel: int) -> dict[str, Any]:
     """Params from ``p``, but live stage from ``a`` (FW keeps ``p`` stage at idle during faults)."""
     d = client.get_channel_params(channel).to_dict()
+    # Never trust a possibly wrong echoed channel byte from the device.
+    d["channel"] = channel
     try:
         act = client.get_activity(channel)
         d["stage"] = act.stage

@@ -8,7 +8,8 @@ type ChannelSeries = {
 }
 
 const SESSION_KEY = 'alc-live-series-v1'
-const MAX_POINTS = 240
+/** ~1 h at 1 Hz — beyond this the chart uses a sliding X window. */
+const MAX_POINTS = 3600
 
 type SessionPayload = {
   channels: Record<string, ChannelSeries>
@@ -23,6 +24,9 @@ let intervalId: number | null = null
 let hydrated = false
 /** Last known idle flag per channel — used to reset series on idle→running. */
 const prevIdleByChannel = new Map<number, boolean>()
+/** Consecutive idle observations before clearing a running series (guards against glitches). */
+const idleStreakByChannel = new Map<number, number>()
+const IDLE_CLEAR_STREAK = 2
 
 function isIdle(c: ChannelParams | undefined): boolean {
   if (!c) return true
@@ -114,6 +118,27 @@ function anyRunning(): boolean {
   return channelsSnap.some((c) => !isIdle(c))
 }
 
+/** One-sample wire glitch: voltage collapses while current spikes (or vice versa). */
+function isGlitchSample(
+  prev: SeriesPoint,
+  v: number | null,
+  i: number | null,
+): boolean {
+  const pv = prev.v
+  const pi = prev.i
+  if (pv == null || v == null) return false
+  // U was healthy (>2 V) and collapses to near 0 in one tick
+  const voltageCollapse = pv > 2 && v < 0.5
+  if (!voltageCollapse) return false
+  // …while I jumps from near-zero / missing to a large charge-like value
+  const prevI = pi ?? 0
+  const curI = i ?? 0
+  if (Math.abs(prevI) < 100 && Math.abs(curI) > 500) return true
+  // …or U collapses alone with no plausible gradual change
+  if (Math.abs(pv - v) > 5) return true
+  return false
+}
+
 function syncTimer(): void {
   if (typeof window === 'undefined') return
   const running = anyRunning()
@@ -147,13 +172,26 @@ function sampleTick(): void {
       seriesByChannel.set(ch, series)
     }
 
+    let v = m?.voltage_V ?? null
+    let i = m?.current_mA ?? null
+    let c = m?.capacity_mAh ?? null
+
+    // Drop single-sample glitches (e.g. U→0 + I spike during Pause/Warten) that
+    // flash too briefly for the numeric readout but stay visible on the chart.
+    const prev = series.points.length > 0 ? series.points[series.points.length - 1] : null
+    if (prev && isGlitchSample(prev, v, i)) {
+      v = prev.v
+      i = prev.i
+      c = prev.c
+    }
+
     series.points = [
       ...series.points,
       {
         t: (now - series.t0) / 1000,
-        v: m?.voltage_V ?? null,
-        i: m?.current_mA ?? null,
-        c: m?.capacity_mAh ?? null,
+        v,
+        i,
+        c,
       },
     ].slice(-MAX_POINTS)
     changed = true
@@ -181,25 +219,35 @@ function sampleTick(): void {
 
 /** Feed latest live channels/measurements; samples once per second while any channel is running. */
 export function updateLiveSnapshot(channels: ChannelParams[], measurements: Measurement[]): void {
-  channelsSnap = channels
-  measurementsSnap = measurements
+  // Trust list order as channel index — device wire may echo a wrong channel byte.
+  channelsSnap = channels.map((c, idx) => ({ ...c, channel: idx }))
+  measurementsSnap =
+    measurements.length === channelsSnap.length
+      ? measurements.map((m, idx) => ({ ...m, channel: idx }))
+      : measurements
 
   let cleared = false
-  for (const c of channels) {
+  for (const c of channelsSnap) {
+    const ch = c.channel
     const idle = isIdle(c)
-    // Reset when a new process starts (idle → running). Skip first sighting so F5 hydrate stays.
-    if (prevIdleByChannel.has(c.channel)) {
-      const wasIdle = prevIdleByChannel.get(c.channel)!
-      if (wasIdle && !idle && seriesByChannel.has(c.channel)) {
-        seriesByChannel.delete(c.channel)
+    const wasIdle = prevIdleByChannel.has(ch) ? prevIdleByChannel.get(ch)! : idle
+
+    if (idle) {
+      const streak = (idleStreakByChannel.get(ch) ?? 0) + 1
+      idleStreakByChannel.set(ch, streak)
+      if (streak >= IDLE_CLEAR_STREAK && seriesByChannel.has(ch)) {
+        seriesByChannel.delete(ch)
+        cleared = true
+      }
+    } else {
+      idleStreakByChannel.set(ch, 0)
+      // New process: idle → running. Skip first sighting so F5 hydrate stays.
+      if (prevIdleByChannel.has(ch) && wasIdle && seriesByChannel.has(ch)) {
+        seriesByChannel.delete(ch)
         cleared = true
       }
     }
-    if (idle && seriesByChannel.has(c.channel)) {
-      seriesByChannel.delete(c.channel)
-      cleared = true
-    }
-    prevIdleByChannel.set(c.channel, idle)
+    prevIdleByChannel.set(ch, idle)
   }
   if (cleared) {
     persistToSession()

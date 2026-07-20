@@ -96,6 +96,23 @@ def test_read_ident_u_simulator():
 def test_battery_db_encode_fw208_length():
     from app.protocol.models import BatteryDbEntry
 
-    entry = BatteryDbEntry(slot=1, name="Test", battery_type=0x01, cells=4, capacity_mAh=2000)
+    entry = BatteryDbEntry(slot=1, name="Test", battery_type=0x01, cells=4, capacity_mAh=2000, full_factor=90)
     assert len(entry.encode_fw208()) == 25
     assert len(entry.encode()) == 26
+
+
+def test_battery_db_decode_fw208_auto_full_factor_90():
+    """Real ALC 8500-2 FW 2.08 ``d`` payload for slot AUTO (Cap-first, flags|full|0xFF)."""
+    from app.protocol.models import BatteryDbEntry
+
+    raw = bytes.fromhex("004155544f20202020200302031975004e204e200000005aff")
+    assert len(raw) == 25
+    entry = BatteryDbEntry.decode(raw)
+    assert entry.name == "AUTO"
+    assert entry.battery_type == 0x03
+    assert entry.cells == 2
+    assert entry.capacity_mAh == 5200.0
+    assert entry.charge_mA == 2000.0
+    assert entry.discharge_mA == 2000.0
+    assert entry.forming_mA == 0.0
+    assert entry.full_factor == 90

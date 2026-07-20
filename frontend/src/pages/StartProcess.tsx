@@ -3,9 +3,25 @@ import { useNavigate, useSearchParams } from 'react-router-dom'
 import { api } from '../api'
 import { useCapabilities } from '../capabilities'
 import { useLocale } from '../locale'
+import type { MessageKey } from '../i18n'
 import { clearSeries } from '../liveSeries'
 
 const SLOT_MANUAL = 0x28
+
+/** Field keys from API corrections → same labels as the start form. */
+const CORRECTION_LABELS: Record<string, MessageKey> = {
+  charge_mA: 'start.chargeCurrent',
+  discharge_mA: 'start.dischargeCurrent',
+  forming_mA: 'start.formingCurrent',
+  capacity_mAh: 'start.capacity',
+  cells: 'start.cells',
+  battery_type: 'start.batteryType',
+  program: 'start.program',
+  pause_s: 'start.pause',
+  full_factor: 'start.fullFactor',
+  activator: 'start.activator',
+  channel: 'start.channel',
+}
 
 type Form = {
   channel: number
@@ -48,10 +64,25 @@ function fromPercent(pct: number): number {
   return Math.max(1, Math.min(150, pct))
 }
 
+type CorrectionMap = Record<string, { requested: unknown; device: unknown }>
+
+/** Device quirks not worth blocking start for (forming floor, Vollfaktor echo). */
+function notableCorrections(corrections: CorrectionMap | null | undefined): CorrectionMap {
+  if (!corrections) return {}
+  const out: CorrectionMap = {}
+  for (const [k, v] of Object.entries(corrections)) {
+    if (k === 'forming_mA' && Number(v.requested) === 0) continue
+    if (k === 'full_factor') continue
+    out[k] = v
+  }
+  return out
+}
+
+/** Copy DB fields into the form; always write as manual slot so FW does not reload EEPROM. */
 function applyPreset(entry: Record<string, unknown>, prev: Form): Form {
   return {
     ...prev,
-    battery_slot: Number(entry.slot),
+    battery_slot: SLOT_MANUAL,
     battery_type: Number(entry.battery_type ?? prev.battery_type),
     cells: Number(entry.cells ?? prev.cells),
     capacity_mAh: Number(entry.capacity_mAh ?? prev.capacity_mAh),
@@ -63,6 +94,29 @@ function applyPreset(entry: Record<string, unknown>, prev: Form): Form {
   }
 }
 
+/** Merge device P-echo into form (keeps channel/activator; skips known FW echo quirks). */
+function formFromDeviceEcho(device: Record<string, unknown>, prev: Form): Form {
+  const num = (k: keyof Form, fallback: number) => {
+    const v = Number(device[k])
+    return Number.isFinite(v) ? v : fallback
+  }
+  const forming = num('forming_mA', prev.forming_mA)
+  return {
+    ...prev,
+    battery_slot: SLOT_MANUAL,
+    battery_type: num('battery_type', prev.battery_type),
+    cells: num('cells', prev.cells),
+    capacity_mAh: num('capacity_mAh', prev.capacity_mAh),
+    charge_mA: num('charge_mA', prev.charge_mA),
+    discharge_mA: num('discharge_mA', prev.discharge_mA),
+    pause_s: num('pause_s', prev.pause_s),
+    // Keep requested 0 — device often floors forming; Vollfaktor echo is unreliable on P.
+    forming_mA: prev.forming_mA === 0 ? 0 : forming,
+    full_factor: prev.full_factor,
+    program: num('program', prev.program),
+  }
+}
+
 export function StartProcess() {
   const navigate = useNavigate()
   const [sp] = useSearchParams()
@@ -71,10 +125,16 @@ export function StartProcess() {
   const [meta, setMeta] = useState<{ battery_types: Record<string, string>; programs: Record<string, string> } | null>(null)
   const [presets, setPresets] = useState<Record<string, unknown>[]>([])
   const [form, setForm] = useState<Form>({ ...defaultForm, channel: Number(sp.get('ch') || 0) })
+  /** UI dropdown only — wire always uses form.battery_slot (manual after preset apply). */
+  const [selectedPresetSlot, setSelectedPresetSlot] = useState(SLOT_MANUAL)
   const [preview, setPreview] = useState<{
     device: Record<string, unknown>
     corrections: Record<string, { requested: unknown; device: unknown }>
   } | null>(null)
+  const [pendingCorrections, setPendingCorrections] = useState<Record<
+    string,
+    { requested: unknown; device: unknown }
+  > | null>(null)
   const [err, setErr] = useState('')
   const [busy, setBusy] = useState(false)
 
@@ -99,9 +159,19 @@ export function StartProcess() {
     }
   }, [capabilities.battery_db])
 
-  const set = (k: keyof Form, v: number | boolean) => setForm((f) => ({ ...f, [k]: v }))
+  const set = (k: keyof Form, v: number | boolean) => {
+    setPreview(null)
+    setPendingCorrections(null)
+    // Manual edit leaves preset values but drops DB association in the UI.
+    if (k !== 'channel' && k !== 'activator' && k !== 'program') {
+      setSelectedPresetSlot(SLOT_MANUAL)
+    }
+    setForm((f) => ({ ...f, [k]: v, battery_slot: SLOT_MANUAL }))
+  }
 
   const setChannel = (ch: number) => {
+    setPreview(null)
+    setPendingCorrections(null)
     setForm((f) => ({
       ...f,
       channel: ch,
@@ -110,47 +180,110 @@ export function StartProcess() {
   }
 
   const selectPreset = (slot: number) => {
+    setPreview(null)
+    setPendingCorrections(null)
+    setSelectedPresetSlot(slot)
     if (slot === SLOT_MANUAL) {
-      set('battery_slot', SLOT_MANUAL)
+      setForm((f) => ({ ...f, battery_slot: SLOT_MANUAL }))
       return
     }
     const entry = presets.find((e) => Number(e.slot) === slot)
     if (entry) {
       setForm((f) => applyPreset(entry, f))
     } else {
-      set('battery_slot', slot)
+      // Unknown slot: still write explicitly as manual to avoid FW slot reload.
+      setForm((f) => ({ ...f, battery_slot: SLOT_MANUAL }))
     }
   }
 
-  const correctedKeys = useMemo(() => new Set(Object.keys(preview?.corrections || {})), [preview])
+  const correctedKeys = useMemo(
+    () => new Set(Object.keys(notableCorrections(preview?.corrections))),
+    [preview],
+  )
   const fullPct = toPercent(form.full_factor)
   const fullOver = fullPct > 100
-  const payload = () => ({
-    ...form,
-    full_factor: capabilities.full_factor ? form.full_factor : 250,
+
+  const formatCorrectionValue = (key: string, value: unknown): string => {
+    if (key === 'full_factor') {
+      const n = Number(value)
+      if (!Number.isFinite(n) || n <= 0 || n >= 250) return t('start.fullFactorOff')
+      return `${n} %`
+    }
+    if (typeof value === 'number') return String(value)
+    if (value == null) return '—'
+    return String(value)
+  }
+
+  const formatCorrections = (corrections: CorrectionMap) =>
+    Object.entries(notableCorrections(corrections))
+      .map(([k, v]) => {
+        const label = CORRECTION_LABELS[k] ? t(CORRECTION_LABELS[k]) : k
+        return `${label}: ${formatCorrectionValue(k, v.requested)} → ${formatCorrectionValue(k, v.device)}`
+      })
+      .join(', ')
+
+  const applyDeviceEcho = (device: Record<string, unknown>) => {
+    setForm((f) => formFromDeviceEcho(device, f))
+  }
+
+  const payloadFrom = (f: Form) => ({
+    ...f,
+    full_factor: capabilities.full_factor ? f.full_factor : 250,
   })
+
+  const payload = () => payloadFrom(form)
 
   const doPreview = async () => {
     setErr('')
+    setPendingCorrections(null)
+    setBusy(true)
     try {
       const res = await api.preview(payload())
-      setPreview({ device: res.device, corrections: res.corrections })
+      const corrections = notableCorrections(res.corrections)
+      applyDeviceEcho(res.device)
+      setPreview({ device: res.device, corrections })
     } catch (e) {
       setErr(String((e as Error).message || e))
+    } finally {
+      setBusy(false)
     }
+  }
+
+  const finishStart = async (params?: Form) => {
+    const f = params ?? form
+    clearSeries(f.channel)
+    await api.start(payloadFrom(f))
+    navigate('/')
   }
 
   const doStart = async () => {
     setErr('')
     setBusy(true)
     try {
-      if (!preview) {
-        const res = await api.preview(payload())
-        setPreview({ device: res.device, corrections: res.corrections })
+      // Always re-check on the device so current limits are current
+      const res = await api.preview(payload())
+      const corrections = notableCorrections(res.corrections)
+      const synced = formFromDeviceEcho(res.device, form)
+      setForm(synced)
+      setPreview({ device: res.device, corrections })
+      if (Object.keys(corrections).length > 0) {
+        setPendingCorrections(corrections)
+        return
       }
-      clearSeries(form.channel)
-      await api.start(payload())
-      navigate('/')
+      await finishStart(synced)
+    } catch (e) {
+      setErr(String((e as Error).message || e))
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  const confirmStartDespiteCorrections = async () => {
+    setPendingCorrections(null)
+    setErr('')
+    setBusy(true)
+    try {
+      await finishStart()
     } catch (e) {
       setErr(String((e as Error).message || e))
     } finally {
@@ -186,7 +319,7 @@ export function StartProcess() {
             <label className="field">
               {t('start.preset')}
               <select
-                value={form.battery_slot >= SLOT_MANUAL ? SLOT_MANUAL : form.battery_slot}
+                value={selectedPresetSlot}
                 onChange={(e) => selectPreset(Number(e.target.value))}
               >
                 <option value={SLOT_MANUAL}>{t('start.presetManual')}</option>
@@ -296,6 +429,7 @@ export function StartProcess() {
                       { value: 50 },
                       { value: 66 },
                       { value: 75 },
+                      { value: 90 },
                       { value: 100 },
                       { value: 110, over: true },
                       { value: 125, over: true },
@@ -346,10 +480,7 @@ export function StartProcess() {
 
         {preview && Object.keys(preview.corrections).length > 0 && (
           <div className="toast" style={{ marginTop: '1rem' }}>
-            {t('start.corrected')}{' '}
-            {Object.entries(preview.corrections)
-              .map(([k, v]) => `${k}: ${v.requested} → ${v.device}`)
-              .join(', ')}
+            {t('start.corrected')} {formatCorrections(preview.corrections)}
           </div>
         )}
         {preview && Object.keys(preview.corrections).length === 0 && (
@@ -359,6 +490,38 @@ export function StartProcess() {
         )}
         {err && <div className="toast error">{err}</div>}
       </div>
+
+      {pendingCorrections && (
+        <div
+          className="modal-backdrop"
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="start-confirm-title"
+        >
+          <div className="modal" onClick={(ev) => ev.stopPropagation()}>
+            <h2 id="start-confirm-title">{t('start.confirmTitle')}</h2>
+            <p className="lead" style={{ marginTop: 0 }}>
+              {t('start.confirmLead')}
+            </p>
+            <div className="toast" style={{ marginBottom: '1rem' }}>
+              {formatCorrections(pendingCorrections)}
+            </div>
+            <div className="row">
+              <button type="button" onClick={() => setPendingCorrections(null)} disabled={busy}>
+                {t('start.confirmCancel')}
+              </button>
+              <button
+                type="button"
+                className="primary"
+                onClick={() => void confirmStartDespiteCorrections()}
+                disabled={busy}
+              >
+                {t('start.confirmStart')}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </>
   )
 }
