@@ -62,3 +62,40 @@ def test_extract_frames_ignores_escaped_etx():
     assert parse_frame(frames[0]) == bytes([ord("p"), 0x03])
     assert parse_frame(frames[1]) == bytes([ord("x")])
     assert rest == bytearray()
+
+
+def test_full_factor_off_wire_zero_maps_to_api_250():
+    from app.protocol.models import ChannelParams
+
+    core = ChannelParams(channel=2, cells=4, full_factor=250).encode_set()
+    assert core[-1] == 0  # FW 2.08 wire off
+    decoded = ChannelParams.decode(core + b"\x00\x00")  # + logger
+    assert decoded.full_factor == 250
+
+
+def test_parse_ident_u_fw208_ff_padding():
+    from app.protocol.models import parse_ident_u
+
+    # Real device shape: FW(10)=h   V2.08 + FFh, pad FFh FFh, SN WEQ1435528
+    body = b"h   V2.08\xff" + b"\xff\xff" + b"WEQ1435528"
+    fw, sn = parse_ident_u(body)
+    assert fw.startswith("h")
+    assert "2.08" in fw
+    assert sn == "WEQ1435528"
+
+
+def test_read_ident_u_simulator():
+    client = ProtocolClient(Alc8500_2Simulator())
+    fw, sn = client.read_ident_u()
+    assert fw.startswith("h")
+    assert sn
+    assert client.firmware == fw
+    assert client.serial_number == sn
+
+
+def test_battery_db_encode_fw208_length():
+    from app.protocol.models import BatteryDbEntry
+
+    entry = BatteryDbEntry(slot=1, name="Test", battery_type=0x01, cells=4, capacity_mAh=2000)
+    assert len(entry.encode_fw208()) == 25
+    assert len(entry.encode()) == 26

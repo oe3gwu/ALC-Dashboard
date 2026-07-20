@@ -552,9 +552,25 @@ def device_info() -> dict[str, Any]:
             info["serial_number"] = None
             info["firmware"] = None
     else:
-        info["serial_number"] = None
-        info["firmware"] = None
-        info["note"] = "Seriennummer/FW werden vom Gerät nicht über das Standardprotokoll geliefert."
+        # ALC 8500-2 / 5000-family: Ident ``u`` → FW-Feld + Seriennummer
+        try:
+            with manager.with_client():
+                read_u = getattr(client, "read_ident_u", None)
+                if callable(read_u):
+                    fw, sn = read_u()
+                    info["firmware"] = fw
+                    info["serial_number"] = sn
+                    info["ident_prefix"] = fw[:1] if fw else None
+                else:
+                    info["serial_number"] = None
+                    info["firmware"] = None
+                    info["note"] = (
+                        "Seriennummer/FW werden vom Gerät nicht über das Standardprotokoll geliefert."
+                    )
+        except Exception:
+            info["serial_number"] = None
+            info["firmware"] = None
+            info["note"] = "Ident u konnte nicht gelesen werden."
     return info
 
 

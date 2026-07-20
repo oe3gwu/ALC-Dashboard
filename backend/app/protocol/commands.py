@@ -15,6 +15,7 @@ from .models import (
     LoggerHeader,
     LoggerSample,
     Temperatures,
+    parse_ident_u,
 )
 from .units import (
     capacity_from_digits,
@@ -36,12 +37,24 @@ class ProtocolClient:
 
     def __init__(self, transport: Transport) -> None:
         self.t = transport
+        self.firmware: str = ""
+        self.serial_number: str = ""
 
     def _req(self, payload: bytes, timeout: float = 2.0) -> bytes:
         frame = build_frame(payload)
         raw = self.t.transfer(frame, timeout=timeout)
         body = parse_frame(raw)
         return body
+
+    def read_ident_u(self) -> tuple[str, str]:
+        """Ident ``u``: firmware field (prefix + version) and serial number."""
+        body = self._req(bytes([ord("u")]))
+        if not body or body[0] not in (ord("u"), ord("U")):
+            raise ValueError(f"Unerwartete Antwort auf u: {body!r}")
+        fw, sn = parse_ident_u(body[1:])
+        self.firmware = fw
+        self.serial_number = sn
+        return fw, sn
 
     def get_channel_params(self, channel: int) -> ChannelParams:
         body = self._req(bytes([ord("p"), channel & 0xFF]))
@@ -135,16 +148,44 @@ class ProtocolClient:
         return Temperatures(battery_C=bat, psu_C=psu, heatsink_C=sink)
 
     def get_battery_db(self, slot: int) -> BatteryDbEntry:
-        body = self._req(bytes([ord("d"), slot & 0xFF]))
-        if not body or body[0] not in (ord("d"), ord("D")):
-            raise ValueError(f"Unerwartete Antwort auf d: {body!r}")
-        return BatteryDbEntry.decode(body[1:])
+        payload = bytes([ord("d"), slot & 0xFF])
+        last: bytes | None = None
+        for attempt in range(3):
+            body = self._req(payload)
+            if body and body[0] in (ord("d"), ord("D")):
+                return BatteryDbEntry.decode(body[1:])
+            last = body
+            if body == bytes([0x04]) and attempt < 2:
+                try:
+                    self.get_channel_params(0)
+                except Exception:
+                    pass
+                continue
+            break
+        raise ValueError(f"Unerwartete Antwort auf d: {last!r}")
 
     def set_battery_db(self, entry: BatteryDbEntry) -> BatteryDbEntry:
-        body = self._req(bytes([ord("D")]) + entry.encode(), timeout=3.0)
-        if not body or body[0] not in (ord("d"), ord("D")):
-            raise ValueError(f"Unerwartete Antwort auf D: {body!r}")
-        return BatteryDbEntry.decode(body[1:])
+        # Prefer FW 2.08 layout (matches device ``d`` replies); fall back to classic.
+        payloads = (
+            bytes([ord("D")]) + entry.encode_fw208(),
+            bytes([ord("D")]) + entry.encode()[:-1],  # Id/Ic/Cap, no full_factor
+            bytes([ord("D")]) + entry.encode(),
+        )
+        last: bytes | None = None
+        for payload in payloads:
+            for attempt in range(2):
+                body = self._req(payload, timeout=3.0)
+                if body and body[0] in (ord("d"), ord("D")):
+                    return BatteryDbEntry.decode(body[1:])
+                last = body
+                if body == bytes([0x04]) and attempt == 0:
+                    try:
+                        self.get_channel_params(0)
+                    except Exception:
+                        pass
+                    continue
+                break
+        raise ValueError(f"Unerwartete Antwort auf D: {last!r}")
 
     def get_device_g(self) -> DeviceParamsG:
         body = self._req(bytes([ord("g")]))

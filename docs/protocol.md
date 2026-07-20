@@ -32,10 +32,7 @@ Multi-byte values: **big-endian**.
 |-----|---------|
 | `p` / `P` | Read / set channel parameters |
 | `a` / `A` | Read activity / start(0)/stop(1) |
-| `m` | Measurements for all channels |
-
-On firmware **V2.08** (Ident prefix **`h`**, serial e.g. `WEQ…`), `m` is **per channel**: request `m` + channel index; reply is `m` + channel + U/I/C. A bare `m` often returns NAK `04h` after unused channels were queried. The dashboard client auto-detects this vs the classic 32-byte all-channel reply.
-
+| `m` | Measurements (classic: all channels; FW 2.08: per channel) |
 | `t` | Temperatures |
 | `d` / `D` | Read / write battery database |
 | `v` | Data-logger block (100 samples) |
@@ -43,6 +40,20 @@ On firmware **V2.08** (Ident prefix **`h`**, serial e.g. `WEQ…`), `m` is **per
 | `g` / `G` | Discharge / cycle parameters |
 | `h` / `H` | Charge / maintain voltages Li/Pb |
 | `j` / `J` | LiFePO4 + backlight / beep / contrast |
+| `u` | Ident: FW field (10) + pad (2) + serial (10) |
+
+### Firmware V2.08 notes (Ident prefix `h`, e.g. serial `WEQ…`)
+
+Verified against ALC 8500-2 Expert hardware:
+
+| Topic | Behavior |
+|-------|----------|
+| Measurements `m` | Per channel: request `m` + ch; reply `m` + ch + U/I/C (bare `m` often NAK). Client auto-detects vs classic 32-byte all-channel reply. |
+| Activity `a` | Often `ch` + `stage` only (no action byte) |
+| Battery DB `d`/`D` | 25-byte entries, no `full_factor`; some slots store Cap before Id/Ic; write via Cap→Id→Ic layout |
+| Channel `P` Vollfaktor | Off is stored as `0` (API still uses `250` = off); forming current may be floored by device |
+| Ident `u` | Pad bytes may be `FFh` instead of `00h`; FW string starts with Ident letter (`h`) |
+| Logger `v` | NAK under poll race — client retries after a `p` probe; may lack classic 3-record header |
 
 ## Battery types (byte)
 

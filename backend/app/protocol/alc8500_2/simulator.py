@@ -126,6 +126,14 @@ class Alc8500_2Simulator:
         if c == "J":
             self.j = DeviceParamsJ.decode(data)
             return bytes([ord("j")]) + self.j.encode()
+        if c == "u":
+            # Same layout as ChargeEasy Teil 2: FW(10) + pad(2) + SN(10)
+            fw = (self.firmware or "h Sim 1.0").encode("ascii", errors="replace")[:10].ljust(10, b"\x00")
+            # Prefer Ident-style field: prefix h + version text
+            if not self.firmware.startswith("h"):
+                fw = ("h " + (self.firmware or "Sim")).encode("ascii", errors="replace")[:10].ljust(10, b"\x00")
+            sn = (self.serial_number or "SIM-8500-2").encode("ascii", errors="replace")[:10].ljust(10, b"\x00")
+            return bytes([ord("u")]) + fw + b"\x00\x00" + sn
         if c == "L":
             ch = data[0] if data else 0
             self._logger[ch] = []

@@ -88,8 +88,15 @@ class ChannelParams:
             + bytes([self.program & 0xFF])
             + pack_u16(current_to_digits(self.forming_mA))
             + pack_u16(self.pause_s & 0xFFFF)
-            + bytes([self.flags & 0xFF, self.full_factor & 0xFF])
+            + bytes([self.flags & 0xFF, self._wire_full_factor()])
         )
+
+    def _wire_full_factor(self) -> int:
+        """API 250 = off; FW 2.08 stores off as 0 on the wire."""
+        ff = int(self.full_factor)
+        if ff <= 0 or ff >= 250:
+            return 0
+        return ff & 0xFF
 
     @classmethod
     def decode(cls, data: bytes) -> ChannelParams:
@@ -125,6 +132,9 @@ class ChannelParams:
         o += 1
         full = data[o]
         o += 1
+        # FW 2.08: off is 0; API / ChargeProfessional use 250 = off
+        if full == 0:
+            full = 250
         logger = 0
         stage = 0
         if len(data) >= o + 2:
@@ -210,6 +220,7 @@ class BatteryDbEntry:
         return d
 
     def encode(self) -> bytes:
+        """Classic 8500-2 / simulator layout: Id, Ic, Cap + full_factor."""
         name = self.name.encode("latin-1", errors="replace")[:9]
         name = name.ljust(9, b"\x00")
         return (
@@ -224,9 +235,27 @@ class BatteryDbEntry:
             + bytes([self.flags & 0xFF, self.full_factor & 0xFF])
         )
 
+    def encode_fw208(self) -> bytes:
+        """FW 2.08 (Ident h) wire layout: Cap, Id, Ic — no full_factor (25 bytes)."""
+        name = self.name.encode("latin-1", errors="replace")[:9]
+        name = name.ljust(9, b" ")
+        return (
+            bytes([self.slot & 0xFF])
+            + name
+            + bytes([self.battery_type & 0xFF, self.cells & 0xFF])
+            + pack_u32(capacity_to_digits(self.capacity_mAh))
+            + pack_u16(current_to_digits(self.discharge_mA))
+            + pack_u16(current_to_digits(self.charge_mA))
+            + pack_u16(self.pause_s)
+            + pack_u16(current_to_digits(self.forming_mA))
+            + bytes([self.flags & 0xFF])
+        )
+
     @classmethod
     def decode(cls, data: bytes) -> BatteryDbEntry:
-        if len(data) < 26:
+        # Classic / simulator: 26 bytes incl. full_factor.
+        # FW 2.08 (Ident h): 25 bytes, no full_factor (same as alc8xxx article layout).
+        if len(data) < 25:
             raise ValueError("Datenbank-Eintrag zu kurz")
         slot = data[0]
         name = data[1:10].split(b"\x00", 1)[0].decode("latin-1", errors="replace").strip()
@@ -235,12 +264,15 @@ class BatteryDbEntry:
         o += 1
         cells = data[o]
         o += 1
+        # Documented order: Id, Ic, Cap. Some FW 2.08 entries store Cap, Id, Ic instead.
         Id = u16(data, o)
-        o += 2
-        Ic = u16(data, o)
-        o += 2
-        cap = u32(data, o)
-        o += 4
+        Ic = u16(data, o + 2)
+        Cap = u32(data, o + 4)
+        if capacity_from_digits(Cap) > 50_000:
+            Cap = u32(data, o)
+            Id = u16(data, o + 4)
+            Ic = u16(data, o + 6)
+        o += 8
         pause = u16(data, o)
         o += 2
         If = u16(data, o) if len(data) >= o + 2 else 0
@@ -248,6 +280,20 @@ class BatteryDbEntry:
         flags = data[o] if len(data) > o else 0
         o += 1
         full = data[o] if len(data) > o else 250
+        if btype == 0xFF:
+            return cls(
+                slot=slot,
+                name="",
+                battery_type=0xFF,
+                cells=0,
+                discharge_mA=0.0,
+                charge_mA=0.0,
+                capacity_mAh=0.0,
+                pause_s=0,
+                forming_mA=0.0,
+                flags=0,
+                full_factor=250,
+            )
         return cls(
             slot=slot,
             name=name,
@@ -255,7 +301,7 @@ class BatteryDbEntry:
             cells=cells,
             discharge_mA=current_from_digits(Id) or 0.0,
             charge_mA=current_from_digits(Ic) or 0.0,
-            capacity_mAh=capacity_from_digits(cap),
+            capacity_mAh=capacity_from_digits(Cap),
             pause_s=pause,
             forming_mA=current_from_digits(If) or 0.0,
             flags=flags,
@@ -502,3 +548,28 @@ class LoggerData:
             "samples": [s.to_dict() for s in self.samples],
             "sample_count": len(self.samples),
         }
+
+
+def parse_ident_u(data: bytes) -> tuple[str, str]:
+    """Parse ``u`` body after command letter: FW(10) + pad(2) + SN(10).
+
+    Classic padding uses ``00h``; FW 2.08 (Ident ``h``) often uses ``FFh``.
+    Returns ``(firmware, serial)`` with firmware like ``h   V2.08``.
+    """
+    if len(data) < 10:
+        raise ValueError("u-Antwort zu kurz")
+
+    def _clean_field(raw: bytes) -> str:
+        # Truncate at NUL, then strip trailing 0xFF pad bytes
+        cut = raw.split(b"\x00", 1)[0]
+        while cut.endswith(b"\xff"):
+            cut = cut[:-1]
+        return cut.decode("ascii", errors="replace").strip()
+
+    fw = _clean_field(data[0:10])
+    sn = ""
+    if len(data) >= 22:
+        sn = _clean_field(data[12:22])
+    elif len(data) > 12:
+        sn = _clean_field(data[12:])
+    return fw, sn
