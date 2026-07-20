@@ -8,8 +8,8 @@ type ChannelSeries = {
 }
 
 const SESSION_KEY = 'alc-live-series-v1'
-/** ~1 h at 1 Hz — beyond this the chart uses a sliding X window. */
-const MAX_POINTS = 3600
+/** ~3 h at 1 Hz — beyond this the chart uses a sliding X window. */
+const MAX_POINTS = 10800
 
 type SessionPayload = {
   channels: Record<string, ChannelSeries>
@@ -27,6 +27,9 @@ const prevIdleByChannel = new Map<number, boolean>()
 /** Consecutive idle observations before clearing a running series (guards against glitches). */
 const idleStreakByChannel = new Map<number, number>()
 const IDLE_CLEAR_STREAK = 2
+/** Empty live payloads (disconnect race) before accepting wipe. */
+let emptySnapStreak = 0
+const EMPTY_SNAP_STREAK = 3
 
 function isIdle(c: ChannelParams | undefined): boolean {
   if (!c) return true
@@ -34,7 +37,13 @@ function isIdle(c: ChannelParams | undefined): boolean {
 }
 
 function notify(): void {
-  for (const listener of listeners) listener()
+  for (const listener of listeners) {
+    try {
+      listener()
+    } catch {
+      /* one bad subscriber must not stop other charts */
+    }
+  }
 }
 
 function persistToSession(): void {
@@ -104,7 +113,8 @@ export function clearAllSeries(): void {
 }
 
 export function getSeries(channel: number): SeriesPoint[] {
-  return seriesByChannel.get(channel)?.points ?? []
+  const pts = seriesByChannel.get(channel)?.points
+  return pts ? [...pts] : []
 }
 
 export function subscribe(listener: () => void): () => void {
@@ -141,7 +151,7 @@ function isGlitchSample(
 
 function syncTimer(): void {
   if (typeof window === 'undefined') return
-  const running = anyRunning()
+  const running = anyRunning() || seriesByChannel.size > 0
   if (running && intervalId == null) {
     sampleTick()
     intervalId = window.setInterval(sampleTick, 1000)
@@ -154,6 +164,28 @@ function syncTimer(): void {
 function sampleTick(): void {
   let changed = false
   const now = Date.now()
+
+  // Transient empty snapshot: keep appending last known measurements for active series
+  if (channelsSnap.length === 0) {
+    for (const [ch, series] of seriesByChannel) {
+      const m = measurementsSnap.find((x) => x.channel === ch)
+      series.points = [
+        ...series.points,
+        {
+          t: (now - series.t0) / 1000,
+          v: m?.voltage_V ?? series.points.at(-1)?.v ?? null,
+          i: m?.current_mA ?? series.points.at(-1)?.i ?? null,
+          c: m?.capacity_mAh ?? series.points.at(-1)?.c ?? null,
+        },
+      ].slice(-MAX_POINTS)
+      changed = true
+    }
+    if (changed) {
+      persistToSession()
+      notify()
+    }
+    return
+  }
 
   for (const chParams of channelsSnap) {
     const ch = chParams.channel
@@ -197,7 +229,7 @@ function sampleTick(): void {
     changed = true
   }
 
-  // Drop series for channels no longer present in snapshot (e.g. fewer channels)
+  // Drop series for channels no longer present (only when we have a non-empty snap)
   const known = new Set(channelsSnap.map((c) => c.channel))
   for (const ch of [...seriesByChannel.keys()]) {
     if (!known.has(ch)) {
@@ -211,7 +243,7 @@ function sampleTick(): void {
     notify()
   }
 
-  if (!anyRunning() && intervalId != null) {
+  if (!anyRunning() && seriesByChannel.size === 0 && intervalId != null) {
     window.clearInterval(intervalId)
     intervalId = null
   }
@@ -219,6 +251,17 @@ function sampleTick(): void {
 
 /** Feed latest live channels/measurements; samples once per second while any channel is running. */
 export function updateLiveSnapshot(channels: ChannelParams[], measurements: Measurement[]): void {
+  if (channels.length === 0) {
+    emptySnapStreak += 1
+    if (emptySnapStreak < EMPTY_SNAP_STREAK) {
+      // Keep previous snap so the 1 Hz timer / series survive disconnect races.
+      syncTimer()
+      return
+    }
+  } else {
+    emptySnapStreak = 0
+  }
+
   // Trust list order as channel index — device wire may echo a wrong channel byte.
   channelsSnap = channels.map((c, idx) => ({ ...c, channel: idx }))
   measurementsSnap =

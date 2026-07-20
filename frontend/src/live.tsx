@@ -12,6 +12,10 @@ type LiveCtx = {
 
 const Ctx = createContext<LiveCtx | null>(null)
 
+/** No WS message for this long → HTTP fallback + reconnect attempt. */
+const WS_STALE_MS = 5000
+const WATCHDOG_MS = 2000
+
 export function LiveProvider({ children }: { children: ReactNode }) {
   const [channels, setChannels] = useState<ChannelParams[]>([])
   const [measurements, setMeasurements] = useState<Measurement[]>([])
@@ -47,10 +51,17 @@ export function LiveProvider({ children }: { children: ReactNode }) {
     }
   }
 
+  const refreshRef = useRef(refresh)
+  refreshRef.current = refresh
+  const applyRef = useRef(apply)
+  applyRef.current = apply
+
   useEffect(() => {
-    let closed = false
+    let unmounted = false
     let ws: WebSocket | null = null
     let retry: ReturnType<typeof setTimeout> | undefined
+    let watchdog: ReturnType<typeof setInterval> | undefined
+    let lastMsgAt = Date.now()
 
     const drop = () => {
       if (retry) {
@@ -71,30 +82,64 @@ export function LiveProvider({ children }: { children: ReactNode }) {
     }
 
     const connect = () => {
-      if (closed) return
+      if (unmounted) return
       drop()
       ws = liveSocket((data) => {
-        if (!closed) apply(data)
+        lastMsgAt = Date.now()
+        if (!unmounted) applyRef.current(data)
       })
       ws.onclose = () => {
-        if (closed) return
+        if (unmounted) return
         retry = setTimeout(connect, 1500)
       }
     }
 
-    const onPageHide = () => {
-      closed = true
-      drop()
-      // Ensure last samples are in sessionStorage before unload / F5
+    const ensureConnected = () => {
+      if (unmounted) return
+      if (!ws || ws.readyState === WebSocket.CLOSING || ws.readyState === WebSocket.CLOSED) {
+        connect()
+      }
+    }
+
+    const resumeLive = () => {
+      ensureConnected()
+      void refreshRef.current()
       updateLiveSnapshot(channelsRef.current, measurementsRef.current)
     }
 
-    refresh()
+    const onPageHide = () => {
+      // Persist samples; close socket but do NOT mark unmounted (bfcache / tab sleep).
+      updateLiveSnapshot(channelsRef.current, measurementsRef.current)
+      drop()
+    }
+
+    const onPageShow = () => {
+      resumeLive()
+    }
+
+    const onVisibility = () => {
+      if (document.visibilityState === 'visible') resumeLive()
+    }
+
+    void refreshRef.current()
     connect()
+    watchdog = window.setInterval(() => {
+      if (unmounted) return
+      if (Date.now() - lastMsgAt > WS_STALE_MS) {
+        void refreshRef.current()
+        ensureConnected()
+      }
+    }, WATCHDOG_MS)
+
     window.addEventListener('pagehide', onPageHide)
+    window.addEventListener('pageshow', onPageShow)
+    document.addEventListener('visibilitychange', onVisibility)
     return () => {
-      closed = true
+      unmounted = true
       window.removeEventListener('pagehide', onPageHide)
+      window.removeEventListener('pageshow', onPageShow)
+      document.removeEventListener('visibilitychange', onVisibility)
+      if (watchdog) clearInterval(watchdog)
       drop()
     }
   }, [])

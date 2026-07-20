@@ -272,14 +272,15 @@ class BatteryDbEntry:
         o += 1
         cells = data[o]
         o += 1
-        # Documented order: Id, Ic, Cap. FW 2.08 occupied slots store Cap, Id, Ic instead.
-        Id = u16(data, o)
-        Ic = u16(data, o + 2)
-        Cap = u32(data, o + 4)
-        if capacity_from_digits(Cap) > 50_000:
+        # Layout by frame length — do not guess via capacity thresholds (fails for low currents).
+        if len(data) == 25:
             Cap = u32(data, o)
             Id = u16(data, o + 4)
             Ic = u16(data, o + 6)
+        else:
+            Id = u16(data, o)
+            Ic = u16(data, o + 2)
+            Cap = u32(data, o + 4)
         o += 8
         pause = u16(data, o)
         o += 2
@@ -470,7 +471,7 @@ class DeviceParamsJ:
     charge_LiFePO4_mV: int = 3650
     maintain_LiFePO4_mV: int = 3450
     placeholder2: int = 0
-    setup_flags: int = 0x01  # illumination + beeps
+    setup_flags: int = 0x02  # illumination + beeps (default 1 min)
     contrast: int = 8
 
     @property
@@ -519,7 +520,7 @@ class DeviceParamsJ:
             charge_LiFePO4_mV=u16(data, 3),
             maintain_LiFePO4_mV=u16(data, 5),
             placeholder2=data[7] if len(data) > 7 else 0,
-            setup_flags=data[8] if len(data) > 8 else 1,
+            setup_flags=data[8] if len(data) > 8 else 2,
             contrast=data[9] if len(data) > 9 else 8,
         )
 

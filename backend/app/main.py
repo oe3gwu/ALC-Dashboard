@@ -5,11 +5,11 @@ import json
 import logging
 from contextlib import asynccontextmanager
 from pathlib import Path
-from typing import Any
+from typing import Any, AsyncIterator
 
 from fastapi import FastAPI, File, HTTPException, Request, UploadFile, WebSocket, WebSocketDisconnect
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import FileResponse, Response
+from fastapi.responses import FileResponse, Response, StreamingResponse
 from fastapi.staticfiles import StaticFiles
 
 from app.api.schemas import (
@@ -27,7 +27,7 @@ from app.api.schemas import (
 )
 from app.config import ROOT, load_config, save_config
 from app.devices.profiles import get_profile, list_devices
-from app.protocol.constants import BATTERY_TYPES, PROGRAMS
+from app.protocol.constants import BATTERY_TYPES, PROGRAMS, SAMPLES_PER_BLOCK
 from app.protocol.models import (
     DeviceParamsG,
     DeviceParamsH,
@@ -72,12 +72,12 @@ def valid_channel(channel: int) -> None:
 async def lifespan(app: FastAPI):
     cfg.data_path.mkdir(parents=True, exist_ok=True)
     (cfg.data_path / "logger").mkdir(parents=True, exist_ok=True)
-    if cfg.simulator or cfg.serial_port:
-        try:
-            manager.connect(port=cfg.serial_port or None, use_simulator=cfg.simulator)
-            log.info("Auto-connect: %s", manager.status())
-        except Exception as exc:
-            log.warning("Auto-connect fehlgeschlagen: %s", exc)
+    # Hardware: leerer serial_port → auto_detect; Simulator: immer verbinden
+    try:
+        manager.connect(port=cfg.serial_port or None, use_simulator=cfg.simulator)
+        log.info("Auto-connect: %s", manager.status())
+    except Exception as exc:
+        log.warning("Auto-connect fehlgeschlagen: %s", exc)
     yield
     manager.disconnect()
 
@@ -220,10 +220,9 @@ def update_config(body: ConfigUpdate) -> dict[str, Any]:
                 reconnect_status = manager.connect(port="", use_simulator=True)
             elif new_port:
                 reconnect_status = manager.connect(port=new_port, use_simulator=False)
-            elif manager.is_connected:
-                # Modell gewechselt, kein Simulator/Port → trennen
-                manager.disconnect()
-                reconnect_status = manager.status()
+            else:
+                # Leerer Port + kein Simulator → auto_detect (nicht nur disconnect)
+                reconnect_status = manager.connect(port="", use_simulator=False)
         except Exception as exc:
             log.warning("Reconnect nach Config-Änderung fehlgeschlagen: %s", exc)
             manager.last_error = str(exc)
@@ -356,6 +355,44 @@ def list_battery_db() -> dict[str, Any]:
     return {"entries": battery_db.load(), "source": "local"}
 
 
+def _battery_db_progress_stream(
+    worker_fn: Any,
+) -> StreamingResponse:
+    """NDJSON progress stream helper (same pattern as logger readout)."""
+    loop = asyncio.get_running_loop()
+    events: asyncio.Queue[dict[str, Any]] = asyncio.Queue()
+
+    def emit(item: dict[str, Any]) -> None:
+        loop.call_soon_threadsafe(events.put_nowait, item)
+
+    def worker() -> None:
+        try:
+            worker_fn(emit)
+        except Exception as exc:
+            manager.last_error = str(exc)
+            emit({"type": "error", "message": str(exc)})
+
+    async def event_stream() -> AsyncIterator[str]:
+        task = asyncio.create_task(asyncio.to_thread(worker))
+        try:
+            while True:
+                item = await events.get()
+                yield json.dumps(item, ensure_ascii=False) + "\n"
+                if item.get("type") in ("done", "error"):
+                    break
+        finally:
+            await task
+
+    return StreamingResponse(
+        event_stream(),
+        media_type="application/x-ndjson",
+        headers={
+            "Cache-Control": "no-cache, no-transform",
+            "X-Accel-Buffering": "no",
+        },
+    )
+
+
 @app.post("/api/battery-db/import-from-device")
 def import_battery_db_from_device() -> dict[str, Any]:
     require_feature("battery_db")
@@ -378,6 +415,46 @@ def import_battery_db_from_device() -> dict[str, Any]:
     }
 
 
+@app.post("/api/battery-db/import-from-device/stream")
+async def import_battery_db_from_device_stream() -> StreamingResponse:
+    require_feature("battery_db")
+    client = require_client()
+
+    def run(emit: Any) -> None:
+        entries: list[dict[str, Any]] = []
+        errors: list[dict[str, Any]] = []
+        emit({"type": "progress", "done": 0, "total": SLOT_COUNT, "slot": 0, "pct": 0})
+        with manager.with_client():
+            for slot in range(SLOT_COUNT):
+                try:
+                    entries.append(client.get_battery_db(slot).to_dict())
+                except Exception as exc:
+                    errors.append({"slot": slot, "error": str(exc)})
+                    entries.append({"slot": slot, "name": ""})
+                done = slot + 1
+                emit(
+                    {
+                        "type": "progress",
+                        "done": done,
+                        "total": SLOT_COUNT,
+                        "slot": slot,
+                        "pct": int(round(100.0 * done / SLOT_COUNT)),
+                    }
+                )
+        saved = battery_db.replace_all(entries)
+        emit(
+            {
+                "type": "done",
+                "entries": saved,
+                "imported": SLOT_COUNT - len(errors),
+                "total": SLOT_COUNT,
+                "errors": errors,
+            }
+        )
+
+    return _battery_db_progress_stream(run)
+
+
 @app.post("/api/battery-db/export-to-device")
 def export_battery_db_to_device() -> dict[str, Any]:
     require_feature("battery_db")
@@ -396,6 +473,42 @@ def export_battery_db_to_device() -> dict[str, Any]:
     if written == 0 and errors:
         raise HTTPException(500, f"Export fehlgeschlagen: {errors[0]['error']}")
     return {"written": written, "total": SLOT_COUNT, "errors": errors}
+
+
+@app.post("/api/battery-db/export-to-device/stream")
+async def export_battery_db_to_device_stream() -> StreamingResponse:
+    require_feature("battery_db")
+    client = require_client()
+    local = battery_db.load()
+
+    def run(emit: Any) -> None:
+        written = 0
+        errors: list[dict[str, Any]] = []
+        emit({"type": "progress", "done": 0, "total": SLOT_COUNT, "slot": 0, "pct": 0})
+        with manager.with_client():
+            for slot in range(SLOT_COUNT):
+                try:
+                    entry = entry_to_model(local[slot])
+                    client.set_battery_db(entry)
+                    written += 1
+                except Exception as exc:
+                    errors.append({"slot": slot, "error": str(exc)})
+                done = slot + 1
+                emit(
+                    {
+                        "type": "progress",
+                        "done": done,
+                        "total": SLOT_COUNT,
+                        "slot": slot,
+                        "pct": int(round(100.0 * done / SLOT_COUNT)),
+                    }
+                )
+        if written == 0 and errors:
+            emit({"type": "error", "message": f"Export fehlgeschlagen: {errors[0]['error']}"})
+            return
+        emit({"type": "done", "written": written, "total": SLOT_COUNT, "errors": errors})
+
+    return _battery_db_progress_stream(run)
 
 
 @app.get("/api/battery-db/file")
@@ -451,6 +564,15 @@ def put_battery_db(slot: int, body: BatteryDbIn) -> dict[str, Any]:
     return battery_db.put(slot, body.model_dump())
 
 
+@app.delete("/api/battery-db/{slot}")
+def reset_battery_db(slot: int) -> dict[str, Any]:
+    """Reset one local preset to defaults — does not write to the device."""
+    require_feature("battery_db")
+    if slot < 0 or slot >= SLOT_COUNT:
+        raise HTTPException(400, "Slot 0–39")
+    return battery_db.reset(slot)
+
+
 # ——— Chemistry / device params ———
 
 
@@ -488,19 +610,24 @@ def put_h(body: DeviceHIn) -> dict[str, Any]:
 def put_j(body: DeviceJIn) -> dict[str, Any]:
     require_feature("chemistry_params")
     client = require_client()
-    flags = (body.illumination & 0x07)
+    # Illum 0x07 + ALBEEP 0x08 + BUBEEP 0x10 — keep any other bits from device
+    illum_beep_mask = 0x07 | 0x08 | 0x10
+    flags = body.illumination & 0x07
     if body.alarm_beep:
         flags |= 0x08
     if body.button_beep:
         flags |= 0x10
-    params = DeviceParamsJ(
-        discharge_LiFePO4_mV=body.discharge_LiFePO4_mV,
-        charge_LiFePO4_mV=body.charge_LiFePO4_mV,
-        maintain_LiFePO4_mV=body.maintain_LiFePO4_mV,
-        setup_flags=flags,
-        contrast=body.contrast,
-    )
     with manager.with_client():
+        cur = client.get_device_j()
+        params = DeviceParamsJ(
+            discharge_LiFePO4_mV=body.discharge_LiFePO4_mV,
+            placeholder=cur.placeholder,
+            charge_LiFePO4_mV=body.charge_LiFePO4_mV,
+            maintain_LiFePO4_mV=body.maintain_LiFePO4_mV,
+            placeholder2=cur.placeholder2,
+            setup_flags=(cur.setup_flags & ~illum_beep_mask) | flags,
+            contrast=body.contrast,
+        )
         return client.set_device_j(params).to_dict()
 
 
@@ -600,6 +727,73 @@ def read_logger(channel: int, save: bool = True) -> dict[str, Any]:
     return result
 
 
+@app.get("/api/logger/{channel}/stream")
+async def read_logger_stream(channel: int, save: bool = True) -> StreamingResponse:
+    """NDJSON stream: progress lines, then done (or error).
+
+    Progress is pushed via asyncio so the live WebSocket cannot stall the ASGI
+    event loop while the serial lock is held for the multi-block readout.
+    """
+    require_feature("logger")
+    valid_channel(channel)
+    client = require_client()
+    loop = asyncio.get_running_loop()
+    events: asyncio.Queue[dict[str, Any]] = asyncio.Queue()
+
+    def emit(item: dict[str, Any]) -> None:
+        loop.call_soon_threadsafe(events.put_nowait, item)
+
+    def on_progress(block: int, total: int, expected: int) -> None:
+        samples = min(block * SAMPLES_PER_BLOCK, expected) if expected else block * SAMPLES_PER_BLOCK
+        pct = int(round(100.0 * block / total)) if total else 100
+        emit(
+            {
+                "type": "progress",
+                "block": block,
+                "total": total,
+                "samples": samples,
+                "expected": expected,
+                "pct": min(100, max(0, pct)),
+            }
+        )
+
+    def worker() -> None:
+        try:
+            with manager.with_client():
+                data = client.read_logger(channel, on_progress=on_progress)
+            result: dict[str, Any] = {"type": "done", "logger": data.to_dict()}
+            if save:
+                meta = archive.save(data)
+                result["archive"] = meta
+                pdf_path = cfg.data_path / "logger" / f"{meta['id']}.pdf"
+                write_pdf(data.to_dict() | {"saved_at": meta["saved_at"]}, pdf_path)
+                result["archive"]["pdf"] = pdf_path.name
+            emit(result)
+        except Exception as exc:
+            manager.last_error = str(exc)
+            emit({"type": "error", "message": f"Logger-Lesen fehlgeschlagen: {exc}"})
+
+    async def event_stream() -> AsyncIterator[str]:
+        task = asyncio.create_task(asyncio.to_thread(worker))
+        try:
+            while True:
+                item = await events.get()
+                yield json.dumps(item, ensure_ascii=False) + "\n"
+                if item.get("type") in ("done", "error"):
+                    break
+        finally:
+            await task
+
+    return StreamingResponse(
+        event_stream(),
+        media_type="application/x-ndjson",
+        headers={
+            "Cache-Control": "no-cache, no-transform",
+            "X-Accel-Buffering": "no",
+        },
+    )
+
+
 @app.delete("/api/logger/{channel}")
 def clear_logger(channel: int) -> dict[str, Any]:
     require_feature("logger")
@@ -685,44 +879,58 @@ def _ws_disconnected(exc: BaseException) -> bool:
     return name in {"ClientDisconnected", "WebSocketException", "ConnectionClosedError", "ConnectionClosedOK"}
 
 
+def _live_payload_nonblocking() -> dict[str, Any] | None:
+    """Build a live snapshot without blocking the asyncio loop.
+
+    Returns None when the serial lock is held (e.g. logger readout) so the
+    WebSocket can skip a tick instead of freezing ASGI streaming responses.
+    """
+    if not manager.is_connected:
+        return {
+            "type": "live",
+            "connection": manager.status(),
+            "channels": [],
+            "measurements": [],
+            "temperatures": {},
+        }
+    if not manager.try_acquire():
+        return None
+    try:
+        client = manager.client
+        n = channel_count()
+        measurements = [m.to_dict() for m in client.get_measurements()[:n]]
+        temps = client.get_temperatures().to_dict()
+        channels = [_channel_live_dict(client, i) for i in range(n)]
+        return {
+            "type": "live",
+            "channels": channels,
+            "measurements": measurements,
+            "temperatures": temps,
+            "connection": manager.status(),
+        }
+    finally:
+        manager.release()
+
+
 @app.websocket("/ws/live")
 async def ws_live(ws: WebSocket) -> None:
     await ws.accept()
     try:
         while True:
             try:
-                if manager.is_connected:
-                    client = manager.client
-                    n = channel_count()
-                    with manager.with_client():
-                        measurements = [m.to_dict() for m in client.get_measurements()[:n]]
-                        temps = client.get_temperatures().to_dict()
-                        channels = [_channel_live_dict(client, i) for i in range(n)]
-                    payload: dict[str, Any] = {
-                        "type": "live",
-                        "channels": channels,
-                        "measurements": measurements,
-                        "temperatures": temps,
-                        "connection": manager.status(),
-                    }
-                else:
-                    payload = {
-                        "type": "live",
-                        "connection": manager.status(),
-                        "channels": [],
-                        "measurements": [],
-                        "temperatures": {},
-                    }
+                # Run lock/IO in a worker thread so logger progress streams stay live.
+                payload = await asyncio.to_thread(_live_payload_nonblocking)
             except Exception as exc:
                 if _ws_disconnected(exc):
                     return
                 payload = {"type": "error", "message": str(exc)}
 
-            try:
-                await ws.send_json(payload)
-            except Exception:
-                # Peer gone / half-closed — exit (avoids asyncio socket.send spam)
-                return
+            if payload is not None:
+                try:
+                    await ws.send_json(payload)
+                except Exception:
+                    # Peer gone / half-closed — exit (avoids asyncio socket.send spam)
+                    return
 
             await asyncio.sleep(cfg.poll_interval)
     except WebSocketDisconnect:

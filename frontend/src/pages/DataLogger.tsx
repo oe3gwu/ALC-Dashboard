@@ -4,6 +4,14 @@ import { useCapabilities } from '../capabilities'
 import { LiveChart } from '../components/LiveChart'
 import { useLocale } from '../locale'
 
+type ReadProgress = {
+  block: number
+  total: number
+  samples: number
+  expected: number
+  pct: number
+}
+
 export function DataLogger() {
   const { t } = useLocale()
   const { capabilities } = useCapabilities()
@@ -15,6 +23,7 @@ export function DataLogger() {
   const [msg, setMsg] = useState('')
   const [err, setErr] = useState('')
   const [busy, setBusy] = useState(false)
+  const [progress, setProgress] = useState<ReadProgress | null>(null)
 
   const loadList = async () => {
     const res = await api.archive()
@@ -44,8 +53,16 @@ export function DataLogger() {
     setBusy(true)
     setErr('')
     setMsg('')
+    setProgress({ block: 0, total: 0, samples: 0, expected: 0, pct: 0 })
     try {
-      const res = await api.readLogger(channel)
+      const res = await api.readLoggerStream(channel, (p) => {
+        setProgress((prev) => {
+          // Ignore out-of-order / restarted stream fragments
+          if (prev && p.block > 0 && p.block < prev.block) return prev
+          if (prev && p.pct < prev.pct && p.block <= prev.block) return prev
+          return p
+        })
+      })
       setSession(res.logger)
       setSessionId(String(res.archive?.id || ''))
       const archived = res.archive ? t('log.archivedAs', { id: String(res.archive.id) }) : ''
@@ -55,6 +72,7 @@ export function DataLogger() {
       setErr(String((e as Error).message || e))
     } finally {
       setBusy(false)
+      setProgress(null)
     }
   }
 
@@ -99,23 +117,47 @@ export function DataLogger() {
       <h1>{t('log.title')}</h1>
       <p className="lead">{t('log.lead')}</p>
 
-      <div className="panel row">
-        <label className="field" style={{ minWidth: 140 }}>
-          {t('log.channel')}
-          <select value={channel} onChange={(e) => setChannel(Number(e.target.value))}>
-            {channelList.map((n) => (
-              <option key={n} value={n}>
-                {t('common.channelN', { n: n + 1 })}
-              </option>
-            ))}
-          </select>
-        </label>
-        <button className="primary" disabled={busy} onClick={download}>
-          {busy ? t('log.reading') : t('log.readDevice')}
-        </button>
-        <button className="danger" onClick={() => api.clearLogger(channel).then(() => setMsg(t('log.cleared')))}>
-          {t('log.clear')}
-        </button>
+      <div className="panel stack">
+        <div className="row">
+          <label className="field" style={{ minWidth: 140 }}>
+            {t('log.channel')}
+            <select value={channel} onChange={(e) => setChannel(Number(e.target.value))} disabled={busy}>
+              {channelList.map((n) => (
+                <option key={n} value={n}>
+                  {t('common.channelN', { n: n + 1 })}
+                </option>
+              ))}
+            </select>
+          </label>
+          <button className="primary" disabled={busy} onClick={download}>
+            {busy ? t('log.reading') : t('log.readDevice')}
+          </button>
+          <button
+            className="danger"
+            disabled={busy}
+            onClick={() => api.clearLogger(channel).then(() => setMsg(t('log.cleared')))}
+          >
+            {t('log.clear')}
+          </button>
+        </div>
+        {busy && progress && (
+          <div className="logger-progress" aria-live="polite">
+            <div className="logger-progress-track">
+              <div className="logger-progress-fill" style={{ width: `${progress.pct}%` }} />
+            </div>
+            <div className="logger-progress-label">
+              {progress.total > 0
+                ? t('log.progressBlocks', {
+                    pct: progress.pct,
+                    block: progress.block,
+                    total: progress.total,
+                    samples: progress.samples,
+                    expected: progress.expected || '…',
+                  })
+                : t('log.progressStarting')}
+            </div>
+          </div>
+        )}
       </div>
 
       {msg && <div className="toast ok">{msg}</div>}

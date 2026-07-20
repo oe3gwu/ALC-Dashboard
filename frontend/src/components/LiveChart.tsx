@@ -96,6 +96,8 @@ export function LiveChart({
   const el = useRef<HTMLDivElement>(null)
   const plot = useRef<uPlot | null>(null)
   const pointsRef = useRef(points)
+  const ensurePlotRef = useRef<(width?: number) => void>(() => {})
+  const retryRaf = useRef<number | null>(null)
   pointsRef.current = points
 
   useEffect(() => {
@@ -115,13 +117,25 @@ export function LiveChart({
       return uiPx(height)
     }
 
-    const ensurePlot = (width: number) => {
-      if (width < uiPx(MIN_WIDTH)) return
+    const scheduleRetry = () => {
+      if (retryRaf.current != null) return
+      retryRaf.current = requestAnimationFrame(() => {
+        retryRaf.current = null
+        ensurePlotRef.current(Math.floor(node.clientWidth))
+      })
+    }
+
+    const ensurePlot = (width = Math.floor(node.clientWidth)) => {
+      if (width < uiPx(MIN_WIDTH)) {
+        scheduleRetry()
+        return
+      }
       const h = plotHeight()
       const axisSm = uiPx(compact ? 36 : 48)
       const axisMd = uiPx(compact ? 44 : 58)
       if (plot.current) {
         plot.current.setSize({ width, height: h })
+        syncData(plot.current)
         return
       }
 
@@ -199,6 +213,8 @@ export function LiveChart({
       syncData(plot.current)
     }
 
+    ensurePlotRef.current = ensurePlot
+
     let lastFs = parseFloat(getComputedStyle(document.documentElement).fontSize) || 16
     const ro = new ResizeObserver((entries) => {
       const width = Math.floor(entries[0]?.contentRect.width ?? node.clientWidth)
@@ -216,13 +232,21 @@ export function LiveChart({
 
     return () => {
       ro.disconnect()
+      if (retryRaf.current != null) {
+        cancelAnimationFrame(retryRaf.current)
+        retryRaf.current = null
+      }
+      ensurePlotRef.current = () => {}
       plot.current?.destroy()
       plot.current = null
     }
   }, [title, height, compact, seriesMode])
 
   useEffect(() => {
-    if (!plot.current) return
+    if (!plot.current) {
+      ensurePlotRef.current()
+      return
+    }
     plot.current.setData(seriesMode === 'cap' ? toCapData(points) : toUiData(points))
   }, [points, seriesMode])
 

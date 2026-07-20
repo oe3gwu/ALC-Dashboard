@@ -90,6 +90,28 @@ def test_battery_db_roundtrip():
     assert out.cells == 3
 
 
+def test_battery_db_roundtrip_low_current():
+    """ALC 8xxx/3000 Classic Id-first must keep small presets intact."""
+    from app.protocol.alc8xxx import models as wire
+    from app.protocol.models import BatteryDbEntry
+
+    entry = BatteryDbEntry(
+        slot=8,
+        name="SANYO700",
+        battery_type=0x00,
+        cells=2,
+        capacity_mAh=700.0,
+        discharge_mA=233.0,
+        charge_mA=233.0,
+        forming_mA=50.0,
+    )
+    decoded = wire.decode_battery_db(wire.encode_battery_db(entry))
+    assert decoded.capacity_mAh == 700.0
+    assert decoded.discharge_mA == 233.0
+    assert decoded.charge_mA == 233.0
+    assert decoded.forming_mA == 50.0
+
+
 def test_8000_no_logger():
     c = Alc8xxxClient(
         Alc8xxxSimulator(channel_count=3, has_logger=False, ident_prefix=IDENT_8000_PLUS),

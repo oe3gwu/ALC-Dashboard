@@ -3,6 +3,13 @@ import { api } from '../api'
 import { useCapabilities } from '../capabilities'
 import { useLocale } from '../locale'
 
+type SyncProgress = {
+  done: number
+  total: number
+  slot: number
+  pct: number
+}
+
 export function BatteryDatabase() {
   const { t } = useLocale()
   const { capabilities, batteryTypes } = useCapabilities()
@@ -11,6 +18,8 @@ export function BatteryDatabase() {
   const [msg, setMsg] = useState('')
   const [err, setErr] = useState('')
   const [busy, setBusy] = useState(false)
+  const [progress, setProgress] = useState<SyncProgress | null>(null)
+  const [progressMode, setProgressMode] = useState<'import' | 'export' | null>(null)
   const fileRef = useRef<HTMLInputElement>(null)
 
   const typeOptions = useMemo(() => {
@@ -35,6 +44,14 @@ export function BatteryDatabase() {
     setEdit({ ...edit, [k]: Number.isFinite(n) ? n : 0 })
   }
 
+  const applyProgress = (p: SyncProgress) => {
+    setProgress((prev) => {
+      if (prev && p.done > 0 && p.done < prev.done) return prev
+      if (prev && p.pct < prev.pct && p.done <= prev.done) return prev
+      return p
+    })
+  }
+
   const save = async () => {
     if (!edit) return
     setErr('')
@@ -52,8 +69,10 @@ export function BatteryDatabase() {
     setErr('')
     setMsg('')
     setBusy(true)
+    setProgressMode('import')
+    setProgress({ done: 0, total: 0, slot: 0, pct: 0 })
     try {
-      const res = await api.importBatteryDbFromDevice()
+      const res = await api.importBatteryDbFromDeviceStream(applyProgress)
       setEntries(res.entries)
       const errNote = res.errors?.length ? t('bat.errorsNote', { n: res.errors.length }) : ''
       setMsg(t('bat.imported', { imported: res.imported, total: res.total, errors: errNote }))
@@ -61,6 +80,8 @@ export function BatteryDatabase() {
       setErr(String((e as Error).message || e))
     } finally {
       setBusy(false)
+      setProgress(null)
+      setProgressMode(null)
     }
   }
 
@@ -71,14 +92,32 @@ export function BatteryDatabase() {
     setErr('')
     setMsg('')
     setBusy(true)
+    setProgressMode('export')
+    setProgress({ done: 0, total: 0, slot: 0, pct: 0 })
     try {
-      const res = await api.exportBatteryDbToDevice()
+      const res = await api.exportBatteryDbToDeviceStream(applyProgress)
       const errNote = res.errors?.length ? t('bat.errorsNote', { n: res.errors.length }) : ''
       setMsg(t('bat.exported', { written: res.written, total: res.total, errors: errNote }))
     } catch (e) {
       setErr(String((e as Error).message || e))
     } finally {
       setBusy(false)
+      setProgress(null)
+      setProgressMode(null)
+    }
+  }
+
+  const resetSlot = async (slot: number) => {
+    if (!window.confirm(t('bat.confirmReset', { n: slot + 1 }))) return
+    setErr('')
+    setMsg('')
+    try {
+      await api.resetBattery(slot)
+      if (edit && Number(edit.slot) === slot) setEdit(null)
+      setMsg(t('bat.resetLocal', { n: slot + 1 }))
+      await load()
+    } catch (e) {
+      setErr(String((e as Error).message || e))
     }
   }
 
@@ -130,27 +169,44 @@ export function BatteryDatabase() {
       {msg && <div className="toast ok">{msg}</div>}
       {err && <div className="toast error">{err}</div>}
 
-      <div className="row" style={{ marginBottom: '1rem', flexWrap: 'wrap' }}>
-        <button className="primary" disabled={busy} onClick={importFromDevice}>
-          {t('bat.importAlc')}
-        </button>
-        <button disabled={busy} onClick={exportToDevice}>
-          {t('bat.exportAlc')}
-        </button>
-        <button disabled={busy} onClick={downloadJson}>
-          {t('bat.saveJson')}
-        </button>
-        <button disabled={busy} onClick={() => fileRef.current?.click()}>
-          {t('bat.loadJson')}
-        </button>
-        <input
-          ref={fileRef}
-          type="file"
-          accept="application/json,.json"
-          hidden
-          onChange={(e) => onFileChosen(e.target.files?.[0])}
-        />
-        {busy && <span style={{ color: 'var(--muted)' }}>{t('bat.syncing')}</span>}
+      <div className="panel stack" style={{ marginBottom: '1rem' }}>
+        <div className="row" style={{ flexWrap: 'wrap' }}>
+          <button className="primary" disabled={busy} onClick={importFromDevice}>
+            {busy && progressMode === 'import' ? t('bat.syncing') : t('bat.importAlc')}
+          </button>
+          <button disabled={busy} onClick={exportToDevice}>
+            {busy && progressMode === 'export' ? t('bat.syncing') : t('bat.exportAlc')}
+          </button>
+          <button disabled={busy} onClick={downloadJson}>
+            {t('bat.saveJson')}
+          </button>
+          <button disabled={busy} onClick={() => fileRef.current?.click()}>
+            {t('bat.loadJson')}
+          </button>
+          <input
+            ref={fileRef}
+            type="file"
+            accept="application/json,.json"
+            hidden
+            onChange={(e) => onFileChosen(e.target.files?.[0])}
+          />
+        </div>
+        {busy && progress && (
+          <div className="logger-progress" aria-live="polite">
+            <div className="logger-progress-track">
+              <div className="logger-progress-fill" style={{ width: `${progress.pct}%` }} />
+            </div>
+            <div className="logger-progress-label">
+              {progress.total > 0
+                ? t('bat.progressSlots', {
+                    pct: progress.pct,
+                    done: progress.done,
+                    total: progress.total,
+                  })
+                : t('bat.progressStarting')}
+            </div>
+          </div>
+        )}
       </div>
 
       <div className="panel" style={{ overflow: 'auto' }}>
@@ -177,9 +233,12 @@ export function BatteryDatabase() {
                 <td className="mono">{String(e.capacity_mAh)}</td>
                 <td className="mono">{String(e.charge_mA)}</td>
                 <td className="mono">{String(e.discharge_mA)}</td>
-                <td>
+                <td className="row">
                   <button disabled={busy} onClick={() => openEdit(e)}>
                     {t('common.edit')}
+                  </button>
+                  <button className="danger" disabled={busy} onClick={() => resetSlot(Number(e.slot))}>
+                    {t('bat.reset')}
                   </button>
                 </td>
               </tr>

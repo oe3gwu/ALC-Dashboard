@@ -116,3 +116,94 @@ def test_battery_db_decode_fw208_auto_full_factor_90():
     assert entry.discharge_mA == 2000.0
     assert entry.forming_mA == 0.0
     assert entry.full_factor == 90
+
+
+def test_battery_db_decode_fw208_low_current_sanyo700():
+    """Regression: Cap-first must not depend on high-current heuristic (>50k mAh)."""
+    from app.protocol.models import BatteryDbEntry
+
+    entry = BatteryDbEntry(
+        slot=8,
+        name="SANYO700",
+        battery_type=0x00,
+        cells=2,
+        capacity_mAh=700.0,
+        discharge_mA=233.0,
+        charge_mA=233.0,
+        full_factor=100,
+    )
+    raw = entry.encode_fw208()
+    assert len(raw) == 25
+    decoded = BatteryDbEntry.decode(raw)
+    assert decoded.capacity_mAh == 700.0
+    assert decoded.discharge_mA == 233.0
+    assert decoded.charge_mA == 233.0
+    assert decoded.name == "SANYO700"
+
+
+def test_battery_db_decode_classic_low_current():
+    """Classic 26-byte Id/Ic/Cap layout still works with small currents."""
+    from app.protocol.models import BatteryDbEntry
+
+    entry = BatteryDbEntry(
+        slot=1,
+        name="SMALL",
+        battery_type=0x01,
+        cells=2,
+        capacity_mAh=700.0,
+        discharge_mA=200.0,
+        charge_mA=350.0,
+        forming_mA=50.0,
+        full_factor=90,
+    )
+    raw = entry.encode()
+    assert len(raw) == 26
+    decoded = BatteryDbEntry.decode(raw)
+    assert decoded.capacity_mAh == 700.0
+    assert decoded.discharge_mA == 200.0
+    assert decoded.charge_mA == 350.0
+    assert decoded.forming_mA == 50.0
+
+
+def test_device_j_illumination_roundtrip_0_1_2():
+    """Wire modes: 0=off, 1=always on, 2=1min — must survive set/get."""
+    from app.protocol.alc8500_2.simulator import Alc8500_2Simulator
+    from app.protocol.commands import ProtocolClient
+    from app.protocol.models import DeviceParamsJ
+
+    client = ProtocolClient(Alc8500_2Simulator())
+    for mode in (0, 1, 2):
+        cur = client.get_device_j()
+        out = client.set_device_j(
+            DeviceParamsJ(
+                discharge_LiFePO4_mV=cur.discharge_LiFePO4_mV,
+                placeholder=cur.placeholder,
+                charge_LiFePO4_mV=cur.charge_LiFePO4_mV,
+                maintain_LiFePO4_mV=cur.maintain_LiFePO4_mV,
+                placeholder2=0xA5,
+                setup_flags=(cur.setup_flags & ~0x1F) | (mode & 0x07),
+                contrast=cur.contrast,
+            )
+        )
+        assert out.illumination == mode
+        assert out.placeholder2 == 0xA5
+        assert client.get_device_j().illumination == mode
+        assert client.get_device_j().placeholder2 == 0xA5
+
+
+def test_device_j_encode_preserves_placeholders():
+    from app.protocol.models import DeviceParamsJ
+
+    raw = DeviceParamsJ(
+        discharge_LiFePO4_mV=2300,
+        placeholder=0x3C,
+        charge_LiFePO4_mV=3650,
+        maintain_LiFePO4_mV=3450,
+        placeholder2=0x5A,
+        setup_flags=0x02,  # 1 min
+        contrast=8,
+    ).encode()
+    decoded = DeviceParamsJ.decode(raw)
+    assert decoded.placeholder == 0x3C
+    assert decoded.placeholder2 == 0x5A
+    assert decoded.illumination == 2

@@ -79,8 +79,8 @@ class DeviceJIn(BaseModel):
     discharge_LiFePO4_mV: int = 2300
     charge_LiFePO4_mV: int = 3650
     maintain_LiFePO4_mV: int = 3450
-    illumination: int = 1
-    alarm_beep: bool = True
+    illumination: int = 2
+    alarm_beep: bool = False
     button_beep: bool = False
     contrast: int = 8
 

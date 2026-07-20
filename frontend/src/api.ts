@@ -72,6 +72,48 @@ async function req<T>(url: string, init?: RequestInit): Promise<T> {
   return res as unknown as T
 }
 
+type NdjsonMsg = Record<string, unknown> & { type: string; message?: string }
+
+async function readNdjsonStream(url: string, init?: RequestInit, onProgress?: (msg: NdjsonMsg) => void): Promise<NdjsonMsg> {
+  const res = await fetch(url, init)
+  if (!res.ok) {
+    let detail = res.statusText
+    try {
+      const j = await res.json()
+      detail = j.detail || JSON.stringify(j)
+    } catch {
+      /* ignore */
+    }
+    throw new Error(detail)
+  }
+  if (!res.body) throw new Error('Kein Stream-Body')
+  const reader = res.body.getReader()
+  const decoder = new TextDecoder()
+  let buffer = ''
+  let result: NdjsonMsg | null = null
+  while (true) {
+    const { done, value } = await reader.read()
+    if (done) break
+    buffer += decoder.decode(value, { stream: true })
+    const lines = buffer.split('\n')
+    buffer = lines.pop() || ''
+    for (const line of lines) {
+      const trimmed = line.trim()
+      if (!trimmed) continue
+      const msg = JSON.parse(trimmed) as NdjsonMsg
+      if (msg.type === 'progress') {
+        onProgress?.(msg)
+      } else if (msg.type === 'done') {
+        result = msg
+      } else if (msg.type === 'error') {
+        throw new Error(String(msg.message || 'Stream fehlgeschlagen'))
+      }
+    }
+  }
+  if (!result) throw new Error('Stream ohne Ergebnis')
+  return result
+}
+
 export const api = {
   meta: () =>
     req<{
@@ -107,15 +149,51 @@ export const api = {
   batteryDb: () => req<{ entries: Record<string, unknown>[]; source?: string }>('/api/battery-db'),
   putBattery: (slot: number, body: Record<string, unknown>) =>
     req(`/api/battery-db/${slot}`, { method: 'PUT', body: JSON.stringify(body) }),
+  resetBattery: (slot: number) => req<Record<string, unknown>>(`/api/battery-db/${slot}`, { method: 'DELETE' }),
   importBatteryDbFromDevice: () =>
     req<{ entries: Record<string, unknown>[]; imported: number; total: number; errors: { slot: number; error: string }[] }>(
       '/api/battery-db/import-from-device',
       { method: 'POST' },
     ),
+  importBatteryDbFromDeviceStream: async (
+    onProgress?: (p: { done: number; total: number; slot: number; pct: number }) => void,
+  ) => {
+    const msg = await readNdjsonStream('/api/battery-db/import-from-device/stream', { method: 'POST' }, (p) => {
+      onProgress?.({
+        done: Number(p.done ?? 0),
+        total: Number(p.total ?? 0),
+        slot: Number(p.slot ?? 0),
+        pct: Number(p.pct ?? 0),
+      })
+    })
+    return {
+      entries: (msg.entries as Record<string, unknown>[]) || [],
+      imported: Number(msg.imported ?? 0),
+      total: Number(msg.total ?? 0),
+      errors: (msg.errors as { slot: number; error: string }[]) || [],
+    }
+  },
   exportBatteryDbToDevice: () =>
     req<{ written: number; total: number; errors: { slot: number; error: string }[] }>('/api/battery-db/export-to-device', {
       method: 'POST',
     }),
+  exportBatteryDbToDeviceStream: async (
+    onProgress?: (p: { done: number; total: number; slot: number; pct: number }) => void,
+  ) => {
+    const msg = await readNdjsonStream('/api/battery-db/export-to-device/stream', { method: 'POST' }, (p) => {
+      onProgress?.({
+        done: Number(p.done ?? 0),
+        total: Number(p.total ?? 0),
+        slot: Number(p.slot ?? 0),
+        pct: Number(p.pct ?? 0),
+      })
+    })
+    return {
+      written: Number(msg.written ?? 0),
+      total: Number(msg.total ?? 0),
+      errors: (msg.errors as { slot: number; error: string }[]) || [],
+    }
+  },
   downloadBatteryDbFile: async () => {
     const res = await fetch('/api/battery-db/file')
     if (!res.ok) throw new Error('Download fehlgeschlagen')
@@ -144,6 +222,25 @@ export const api = {
   restoreDefaults: () => req('/api/device/params/restore', { method: 'POST' }),
   deviceInfo: () => req<Record<string, unknown>>('/api/device/info'),
   readLogger: (ch: number) => req<{ logger: Record<string, unknown>; archive?: Record<string, unknown> }>(`/api/logger/${ch}?save=true`),
+  readLoggerStream: async (
+    ch: number,
+    onProgress?: (p: { block: number; total: number; samples: number; expected: number; pct: number }) => void,
+  ) => {
+    const msg = await readNdjsonStream(`/api/logger/${ch}/stream?save=true`, undefined, (p) => {
+      onProgress?.({
+        block: Number(p.block ?? 0),
+        total: Number(p.total ?? 0),
+        samples: Number(p.samples ?? 0),
+        expected: Number(p.expected ?? 0),
+        pct: Number(p.pct ?? 0),
+      })
+    })
+    if (!msg.logger) throw new Error('Logger-Stream ohne Ergebnis')
+    return {
+      logger: msg.logger as Record<string, unknown>,
+      archive: msg.archive as Record<string, unknown> | undefined,
+    }
+  },
   clearLogger: (ch: number) => req(`/api/logger/${ch}`, { method: 'DELETE' }),
   archive: () => req<{ sessions: Record<string, unknown>[] }>('/api/archive'),
   archiveSession: (id: string) => req<Record<string, unknown>>(`/api/archive/${id}`),

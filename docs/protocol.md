@@ -40,6 +40,19 @@ Multi-byte values: **big-endian**.
 | `g` / `G` | Discharge / cycle parameters |
 | `h` / `H` | Charge / maintain voltages Li/Pb |
 | `j` / `J` | LiFePO4 + backlight / beep / contrast |
+
+Backlight / setup byte in `j`/`J` (mask `0x07`; `ALBEEP_EN=0x08`, `BUBEEP_EN=0x10`):
+
+| Value | Mode |
+|------:|------|
+| 0 | Off |
+| 1 | Always on (protocol only; omitted in dashboard UI) |
+| 2 | 1 min |
+| 3 | 5 min |
+| 4 | 10 min |
+| 5 | 30 min |
+| 6 | 60 min |
+
 | `u` | Ident: FW field (10) + pad (2) + serial (10) |
 
 ### Firmware V2.08 notes (Ident prefix `h`, e.g. serial `WEQ…`)

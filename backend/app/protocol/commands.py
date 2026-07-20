@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from collections.abc import Callable
 from typing import Protocol
 
 from .framing import build_frame, parse_frame
@@ -259,16 +260,26 @@ class ProtocolClient:
             break
         raise ValueError(f"Unerwartete Antwort auf v: {last!r}")
 
-    def read_logger(self, channel: int, sample_count: int | None = None) -> LoggerData:
+    def read_logger(
+        self,
+        channel: int,
+        sample_count: int | None = None,
+        on_progress: Callable[[int, int, int], None] | None = None,
+    ) -> LoggerData:
         params = self.get_channel_params(channel)
         count = sample_count if sample_count is not None else params.logger_samples
         count = max(0, min(int(count), MAX_LOGGER_BLOCKS * SAMPLES_PER_BLOCK))
         if count == 0:
+            if on_progress:
+                on_progress(1, 1, 0)
             return LoggerData(channel=channel, header=LoggerHeader(), samples=[])
 
         blocks = max(1, (count + SAMPLES_PER_BLOCK - 1) // SAMPLES_PER_BLOCK)
+        total_blocks = min(blocks, MAX_LOGGER_BLOCKS)
+        if on_progress:
+            on_progress(0, total_blocks, count)
         raw_samples: list[bytes] = []
-        for b in range(min(blocks, MAX_LOGGER_BLOCKS)):
+        for b in range(total_blocks):
             try:
                 data = self.get_logger_block(channel, b)
             except ValueError:
@@ -283,6 +294,8 @@ class ProtocolClient:
                 if o + 8 > len(payload):
                     break
                 raw_samples.append(payload[o : o + 8])
+            if on_progress:
+                on_progress(b + 1, total_blocks, count)
 
         header = LoggerHeader()
         measure_records = raw_samples

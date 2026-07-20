@@ -152,6 +152,7 @@ class SerialManager:
         self.device_model: str = cfg.device_model
         self.last_error: str | None = None
         self._io_activity = SerialIoActivity()
+        self._last_auto_probed: list[str] = []
 
     @property
     def mock(self) -> bool:
@@ -199,14 +200,20 @@ class SerialManager:
 
     def auto_detect(self) -> str | None:
         candidates = sorted(self.list_ports(), key=self._score_port, reverse=True)
+        probed: list[str] = []
         for info in candidates:
             if self._score_port(info) <= 0 and not info.device.startswith(("/dev/ttyUSB", "/dev/ttyACM", "/dev/ttyS")):
                 continue
+            probed.append(info.device)
             try:
                 if self._probe(info.device):
+                    # USB-Serial needs a brief settle before reopen in connect()
+                    time.sleep(0.2)
+                    self._last_auto_probed = probed
                     return info.device
             except Exception as exc:
                 log.debug("Probe %s failed: %s", info.device, exc)
+        self._last_auto_probed = probed
         return None
 
     def _probe(self, port: str) -> bool:
@@ -226,16 +233,26 @@ class SerialManager:
         try:
             transport.open()
             if profile.protocol == "alc8xxx_usb":
-                client: ProtocolClient | Alc8xxxClient | Alc3000Client = Alc8xxxClient(
+                client: Any = Alc8xxxClient(
                     transport,
                     channel_count=profile.channel_count,
                     has_logger=profile.features.logger,
                 )
+                client.get_temperatures()
             elif profile.protocol == "alc3000_usb":
                 client = Alc3000Client(transport)
+                client.get_temperatures()
+            elif profile.protocol == "alc5000_usb":
+                client5 = Alc5000Client(transport, channel_count=profile.channel_count)
+                try:
+                    client5.ensure_supported_device()
+                except UnsupportedAlc5000Error:
+                    return False
+                client5.get_temperatures()
             else:
+                # alc8500_usb and unknown USB STX profiles
                 client = ProtocolClient(transport)
-            client.get_temperatures()
+                client.get_temperatures()
             return True
         except Exception:
             return False
@@ -271,10 +288,20 @@ class SerialManager:
             if sim:
                 return self._connect_simulator(profile)
 
+            used_auto = not chosen_port
             chosen = chosen_port or self.auto_detect()
             if not chosen:
-                self.last_error = "Kein ALC-Gerät gefunden"
+                probed = getattr(self, "_last_auto_probed", []) or []
+                if probed:
+                    self.last_error = (
+                        f"Kein ALC-Gerät gefunden (geprüft: {', '.join(probed)})"
+                    )
+                else:
+                    self.last_error = "Kein ALC-Gerät gefunden (keine seriellen Ports)"
                 raise RuntimeError(self.last_error)
+
+            if used_auto:
+                time.sleep(0.05)
 
             self._io_activity.reset()
 
@@ -450,3 +477,10 @@ class SerialManager:
 
     def with_client(self):
         return self._lock
+
+    def try_acquire(self) -> bool:
+        """Non-blocking lock for live polls while logger holds the bus."""
+        return self._lock.acquire(blocking=False)
+
+    def release(self) -> None:
+        self._lock.release()

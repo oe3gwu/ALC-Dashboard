@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from collections.abc import Callable
 from typing import Protocol
 
 from app.protocol.alc8xxx import models as wire
@@ -176,14 +177,22 @@ class Alc8xxxClient:
             raise ValueError(f"Unerwartete Antwort auf v: {body!r}")
         return body[1:]
 
-    def read_logger(self, channel: int, sample_count: int | None = None) -> LoggerData:
+    def read_logger(
+        self,
+        channel: int,
+        sample_count: int | None = None,
+        on_progress: Callable[[int, int, int], None] | None = None,
+    ) -> LoggerData:
         if not self.has_logger:
             raise NotImplementedError("Datenlogger nicht am ALC 8000")
         params = self.get_channel_params(channel)
         count = sample_count if sample_count is not None else params.logger_samples
         blocks = max(1, (count + SAMPLES_PER_BLOCK - 1) // SAMPLES_PER_BLOCK) if count else 1
+        total_blocks = min(blocks, 651)
+        if on_progress:
+            on_progress(0, total_blocks, int(count or 0))
         raw_samples: list[bytes] = []
-        for b in range(min(blocks, 651)):
+        for b in range(total_blocks):
             data = self.get_logger_block(channel, b)
             payload = data
             if len(data) >= 3 and data[0] == channel:
@@ -193,6 +202,8 @@ class Alc8xxxClient:
                 if o + 8 > len(payload):
                     break
                 raw_samples.append(payload[o : o + 8])
+            if on_progress:
+                on_progress(b + 1, total_blocks, int(count or 0))
 
         header = LoggerHeader()
         samples: list[LoggerSample] = []

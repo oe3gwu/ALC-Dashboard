@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from collections.abc import Callable
 from typing import Any, Protocol
 
 from app.protocol.alc7000.mapping import (
@@ -260,7 +261,12 @@ class Alc7000Client:
         if hasattr(link, "engine"):
             link.engine.channels[channel].logger = []  # type: ignore[attr-defined]
 
-    def read_logger(self, channel: int, sample_count: int | None = None) -> LoggerData:
+    def read_logger(
+        self,
+        channel: int,
+        sample_count: int | None = None,
+        on_progress: Callable[[int, int, int], None] | None = None,
+    ) -> LoggerData:
         params = self.get_channel_params(channel)
         samples: list[LoggerSample] = []
         link = self.link
@@ -279,4 +285,6 @@ class Alc7000Client:
             forming_mA=0,
             pause_s=0,
         )
+        if on_progress:
+            on_progress(1, 1, len(samples))
         return LoggerData(channel=channel, header=header, samples=samples)

@@ -12,17 +12,11 @@ type DeviceSetup = {
   button_beep: boolean
 }
 
-const DEFAULT_SETUP: DeviceSetup = {
-  illumination: 1,
-  contrast: 8,
-  alarm_beep: false,
-  button_beep: false,
-}
+/** Wire values offered in UI (ELV 0=off, 1=always-on omitted, 2..6 = timers). */
+const ILLUM_WIRE = [0, 2, 3, 4, 5, 6] as const
 
-/** ELV j-frame backlight modes (not brightness levels). */
 const ILLUM_MODE_KEYS: MessageKey[] = [
   'set.illumOff',
-  'set.illumOn',
   'set.illum1m',
   'set.illum5m',
   'set.illum10m',
@@ -30,9 +24,31 @@ const ILLUM_MODE_KEYS: MessageKey[] = [
   'set.illum60m',
 ]
 
+const DEFAULT_SETUP: DeviceSetup = {
+  illumination: 2, // 1 Min.
+  contrast: 8,
+  alarm_beep: false,
+  button_beep: false,
+}
+
 function clamp(n: number, lo: number, hi: number): number {
   if (!Number.isFinite(n)) return lo
   return Math.max(lo, Math.min(hi, Math.round(n)))
+}
+
+/** Map device wire value → slider index; legacy always-on (1) → Aus. */
+function illumWireToIndex(wire: number): number {
+  const w = clamp(wire, 0, 6)
+  const idx = ILLUM_WIRE.indexOf(w as (typeof ILLUM_WIRE)[number])
+  return idx >= 0 ? idx : 0
+}
+
+function illumIndexToWire(index: number): number {
+  return ILLUM_WIRE[clamp(index, 0, ILLUM_WIRE.length - 1)]
+}
+
+function normalizeIllumWire(wire: number): number {
+  return illumIndexToWire(illumWireToIndex(wire))
 }
 
 export function Settings() {
@@ -81,7 +97,7 @@ export function Settings() {
       .deviceParams()
       .then((res) => {
         setSetup({
-          illumination: Number(res.j.illumination ?? 1),
+          illumination: normalizeIllumWire(Number(res.j.illumination ?? 2)),
           contrast: Number(res.j.contrast ?? 8),
           alarm_beep: Boolean(res.j.alarm_beep),
           button_beep: Boolean(res.j.button_beep),
@@ -156,7 +172,7 @@ export function Settings() {
     try {
       const res = await api.deviceParams()
       setSetup({
-        illumination: Number(res.j.illumination ?? 1),
+        illumination: normalizeIllumWire(Number(res.j.illumination ?? 2)),
         contrast: Number(res.j.contrast ?? 8),
         alarm_beep: Boolean(res.j.alarm_beep),
         button_beep: Boolean(res.j.button_beep),
@@ -174,16 +190,40 @@ export function Settings() {
     setSetupMsg('')
     setSetupBusy(true)
     try {
-      // Preserve LiFe voltages that share the j frame.
+      const wantIllum = normalizeIllumWire(setup.illumination)
+      const wantContrast = clamp(setup.contrast, 0, 15)
+      // Preserve LiFe voltages that share the j frame (placeholders RMW on backend).
       const cur = await api.deviceParams()
-      await api.putJ({
+      const echoed = (await api.putJ({
         discharge_LiFePO4_mV: cur.j.discharge_LiFePO4_mV,
         charge_LiFePO4_mV: cur.j.charge_LiFePO4_mV,
         maintain_LiFePO4_mV: cur.j.maintain_LiFePO4_mV,
-        illumination: clamp(setup.illumination, 0, 6),
-        contrast: clamp(setup.contrast, 0, 15),
+        illumination: wantIllum,
+        contrast: wantContrast,
         alarm_beep: setup.alarm_beep,
         button_beep: setup.button_beep,
+      })) as {
+        illumination?: number
+        contrast?: number
+        alarm_beep?: boolean
+        button_beep?: boolean
+      }
+      const gotIllum = normalizeIllumWire(Number(echoed.illumination ?? -1))
+      if (Number(echoed.illumination) !== wantIllum) {
+        setSetupErr(t('set.setupIllumMismatch', { want: wantIllum, got: Number(echoed.illumination) }))
+        setSetup({
+          illumination: gotIllum,
+          contrast: Number(echoed.contrast ?? wantContrast),
+          alarm_beep: Boolean(echoed.alarm_beep),
+          button_beep: Boolean(echoed.button_beep),
+        })
+        return
+      }
+      setSetup({
+        illumination: wantIllum,
+        contrast: Number(echoed.contrast ?? wantContrast),
+        alarm_beep: Boolean(echoed.alarm_beep ?? setup.alarm_beep),
+        button_beep: Boolean(echoed.button_beep ?? setup.button_beep),
       })
       setSetupMsg(t('set.setupApplyOk'))
     } catch (e) {
@@ -278,16 +318,16 @@ export function Settings() {
                     type="range"
                     className="setup-slider"
                     min={0}
-                    max={6}
+                    max={ILLUM_WIRE.length - 1}
                     step={1}
-                    value={clamp(setup.illumination, 0, 6)}
+                    value={illumWireToIndex(setup.illumination)}
                     onChange={(e) =>
-                      setSetup({ ...setup, illumination: clamp(Number(e.target.value), 0, 6) })
+                      setSetup({ ...setup, illumination: illumIndexToWire(Number(e.target.value)) })
                     }
-                    aria-valuetext={t(ILLUM_MODE_KEYS[clamp(setup.illumination, 0, 6)])}
+                    aria-valuetext={t(ILLUM_MODE_KEYS[illumWireToIndex(setup.illumination)])}
                   />
                   <span className="setup-slider-value">
-                    {t(ILLUM_MODE_KEYS[clamp(setup.illumination, 0, 6)])}
+                    {t(ILLUM_MODE_KEYS[illumWireToIndex(setup.illumination)])}
                   </span>
                 </div>
               </label>

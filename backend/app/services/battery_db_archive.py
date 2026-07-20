@@ -24,8 +24,21 @@ ENTRY_KEYS = (
 
 
 def empty_entry(slot: int) -> dict[str, Any]:
-    e = BatteryDbEntry(slot=slot, name="")
-    return e.to_dict()
+    """Cleared local preset (like an unused ALC slot), not factory NiMH defaults."""
+    return {
+        "slot": slot,
+        "name": "",
+        "battery_type": 0xFF,
+        "battery_type_name": BATTERY_TYPES[0xFF],
+        "cells": 1,
+        "discharge_mA": 0.0,
+        "charge_mA": 0.0,
+        "capacity_mAh": 0.0,
+        "pause_s": 0,
+        "forming_mA": 0.0,
+        "flags": 0,
+        "full_factor": 250,
+    }
 
 
 def normalize_entry(raw: dict[str, Any], slot: int | None = None) -> dict[str, Any]:
@@ -40,7 +53,9 @@ def normalize_entry(raw: dict[str, Any], slot: int | None = None) -> dict[str, A
             base[key] = raw[key]
     base["slot"] = s
     base["name"] = str(base.get("name") or "")[:9]
-    base["battery_type"] = int(base.get("battery_type") or 0)
+    # Keep 0xFF (empty „—“) and 0x00 (NiCd); only fall back when missing/None
+    bt = base.get("battery_type")
+    base["battery_type"] = int(bt) if bt is not None and bt != "" else 0xFF
     base["cells"] = int(base.get("cells") or 1)
     base["discharge_mA"] = float(base.get("discharge_mA") or 0)
     base["charge_mA"] = float(base.get("charge_mA") or 0)
@@ -104,6 +119,10 @@ class BatteryDbArchive:
         entries[slot] = normalize_entry(raw, slot=slot)
         self.save(entries)
         return entries[slot]
+
+    def reset(self, slot: int) -> dict[str, Any]:
+        """Reset one slot to empty defaults (local archive only)."""
+        return self.put(slot, empty_entry(slot))
 
     def replace_all(self, entries: list[dict[str, Any]]) -> list[dict[str, Any]]:
         return self.save(entries)

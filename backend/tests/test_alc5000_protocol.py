@@ -144,3 +144,24 @@ def test_battery_db_roundtrip():
     assert echoed.name == "TestAkku"
     assert echoed.full_factor == 100
     assert echoed.capacity_mAh == 2500
+
+
+def test_battery_db_roundtrip_low_current():
+    """ALC 5000 Cap-first layout must keep small presets intact."""
+    from app.protocol.alc5000 import models as wire
+    from app.protocol.models import BatteryDbEntry
+
+    entry = BatteryDbEntry(
+        slot=8,
+        name="SANYO700",
+        battery_type=0x00,
+        cells=2,
+        capacity_mAh=700.0,
+        discharge_mA=233.0,
+        charge_mA=233.0,
+        full_factor=100,
+    )
+    decoded = wire.decode_battery_db(wire.encode_battery_db(entry))
+    assert decoded.capacity_mAh == 700.0
+    assert decoded.discharge_mA == 233.0
+    assert decoded.charge_mA == 233.0
