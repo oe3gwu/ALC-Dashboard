@@ -22,8 +22,6 @@ let channelsSnap: ChannelParams[] = []
 let measurementsSnap: Measurement[] = []
 let intervalId: number | null = null
 let hydrated = false
-/** Last known idle flag per channel — used to reset series on idle→running. */
-const prevIdleByChannel = new Map<number, boolean>()
 /** Consecutive idle observations before clearing a running series (guards against glitches). */
 const idleStreakByChannel = new Map<number, number>()
 const IDLE_CLEAR_STREAK = 2
@@ -189,13 +187,9 @@ function sampleTick(): void {
 
   for (const chParams of channelsSnap) {
     const ch = chParams.channel
-    if (isIdle(chParams)) {
-      if (seriesByChannel.has(ch)) {
-        seriesByChannel.delete(ch)
-        changed = true
-      }
-      continue
-    }
+    // Idle channels: do not sample. Clearing is handled in updateLiveSnapshot
+    // (with streak guard) so a one-tick Leerlauf glitch cannot wipe the chart.
+    if (isIdle(chParams)) continue
 
     const m = measurementsSnap.find((x) => x.channel === ch)
     let series = seriesByChannel.get(ch)
@@ -273,7 +267,6 @@ export function updateLiveSnapshot(channels: ChannelParams[], measurements: Meas
   for (const c of channelsSnap) {
     const ch = c.channel
     const idle = isIdle(c)
-    const wasIdle = prevIdleByChannel.has(ch) ? prevIdleByChannel.get(ch)! : idle
 
     if (idle) {
       const streak = (idleStreakByChannel.get(ch) ?? 0) + 1
@@ -284,13 +277,10 @@ export function updateLiveSnapshot(channels: ChannelParams[], measurements: Meas
       }
     } else {
       idleStreakByChannel.set(ch, 0)
-      // New process: idle → running. Skip first sighting so F5 hydrate stays.
-      if (prevIdleByChannel.has(ch) && wasIdle && seriesByChannel.has(ch)) {
-        seriesByChannel.delete(ch)
-        cleared = true
-      }
+      // Intentionally no idle→running wipe here: a single Leerlauf flicker followed
+      // by "running" again used to delete the whole series (looked like a chart reset).
+      // New processes call clearSeries() from Start; ended processes clear via streak.
     }
-    prevIdleByChannel.set(ch, idle)
   }
   if (cleared) {
     persistToSession()

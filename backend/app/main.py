@@ -68,6 +68,9 @@ def valid_channel(channel: int) -> None:
         raise HTTPException(400, f"Kanal 0–{n - 1}")
 
 
+AUTO_CONNECT_RETRY_S = 5.0
+
+
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     cfg.data_path.mkdir(parents=True, exist_ok=True)
@@ -78,7 +81,33 @@ async def lifespan(app: FastAPI):
         log.info("Auto-connect: %s", manager.status())
     except Exception as exc:
         log.warning("Auto-connect fehlgeschlagen: %s", exc)
+
+    retry_task: asyncio.Task[None] | None = None
+
+    async def autoconnect_retry_loop() -> None:
+        """Retry every 5s until connected or user disables via Disconnect."""
+        while manager.startup_autoconnect and not manager.is_connected:
+            await asyncio.sleep(AUTO_CONNECT_RETRY_S)
+            if not manager.startup_autoconnect or manager.is_connected:
+                break
+            try:
+                manager.connect(port=cfg.serial_port or None, use_simulator=cfg.simulator)
+                log.info("Auto-connect retry OK: %s", manager.status())
+                break
+            except Exception as exc:
+                log.info("Auto-connect retry: %s", exc)
+
+    if manager.startup_autoconnect and not manager.is_connected:
+        retry_task = asyncio.create_task(autoconnect_retry_loop())
+
     yield
+
+    if retry_task is not None:
+        retry_task.cancel()
+        try:
+            await retry_task
+        except asyncio.CancelledError:
+            pass
     manager.disconnect()
 
 
@@ -172,6 +201,8 @@ def connect(body: ConnectRequest) -> dict[str, Any]:
 
 @app.post("/api/connection/disconnect")
 def disconnect() -> dict[str, Any]:
+    # Stop boot-time auto-retry; intentional disconnect must stay disconnected
+    manager.startup_autoconnect = False
     manager.disconnect()
     return manager.status()
 

@@ -153,6 +153,8 @@ class SerialManager:
         self.last_error: str | None = None
         self._io_activity = SerialIoActivity()
         self._last_auto_probed: list[str] = []
+        # Retry connect after boot until success; cleared by API disconnect only
+        self.startup_autoconnect = True
 
     @property
     def mock(self) -> bool:
