@@ -1,6 +1,7 @@
 import { createContext, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
 import { api, liveSocket, type ChannelParams, type LivePayload, type Measurement } from './api'
 import { updateLiveSnapshot } from './liveSeries'
+import { createStageStabilizeState, stabilizeChannels } from './stageStabilize'
 
 type LiveCtx = {
   channels: ChannelParams[]
@@ -23,11 +24,13 @@ export function LiveProvider({ children }: { children: ReactNode }) {
   const [connection, setConnection] = useState<LivePayload['connection']>()
   const channelsRef = useRef(channels)
   const measurementsRef = useRef(measurements)
+  const stageStateRef = useRef(createStageStabilizeState())
 
   const apply = (data: LivePayload) => {
     if (data.channels) {
-      channelsRef.current = data.channels
-      setChannels(data.channels)
+      const stable = stabilizeChannels(stageStateRef.current, data.channels)
+      channelsRef.current = stable
+      setChannels(stable)
     }
     if (data.measurements) {
       measurementsRef.current = data.measurements
