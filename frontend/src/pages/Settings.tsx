@@ -288,17 +288,17 @@ export function Settings() {
           <input type="number" step="0.1" value={poll} onChange={(e) => setPoll(Number(e.target.value))} />
         </label>
         </div>
-      </div>
-      <div className="row">
-        <button type="button" className="primary" onClick={save}>
-          {t('common.save')}
-        </button>
-        <button type="button" className="primary" onClick={connect}>
-          {t('set.connect')}
-        </button>
-        <button type="button" onClick={disconnect}>
-          {t('set.disconnect')}
-        </button>
+        <div className="row panel-actions">
+          <button type="button" className="primary" onClick={save}>
+            {t('common.save')}
+          </button>
+          <button type="button" className="primary" onClick={connect}>
+            {t('set.connect')}
+          </button>
+          <button type="button" onClick={disconnect}>
+            {t('set.disconnect')}
+          </button>
+        </div>
       </div>
       {msg && <div className="toast ok">{msg}</div>}
       {err && <div className="toast error">{err}</div>}
@@ -372,7 +372,7 @@ export function Settings() {
                 </select>
               </label>
             </div>
-            <div className="row" style={{ marginTop: '1rem' }}>
+            <div className="row panel-actions">
               <button type="button" onClick={() => void readSetup()} disabled={setupBusy}>
                 {t('set.readSetup')}
               </button>

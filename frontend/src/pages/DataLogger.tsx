@@ -118,10 +118,14 @@ export function DataLogger() {
       <p className="lead">{t('log.lead')}</p>
 
       <div className="panel stack">
-        <div className="row">
-          <label className="field" style={{ minWidth: 140 }}>
-            {t('log.channel')}
-            <select value={channel} onChange={(e) => setChannel(Number(e.target.value))} disabled={busy}>
+        <div className="row logger-toolbar">
+          <label className="field field-control-only" style={{ minWidth: 140 }}>
+            <select
+              aria-label={t('log.channel')}
+              value={channel}
+              onChange={(e) => setChannel(Number(e.target.value))}
+              disabled={busy}
+            >
               {channelList.map((n) => (
                 <option key={n} value={n}>
                   {t('common.channelN', { n: n + 1 })}

@@ -234,19 +234,21 @@ export function ChemistryParams() {
   )
 
   const actionButtons = (
-    <div className="row chem-actions">
-      <button type="button" onClick={doRead} disabled={busy}>
-        {t('chem.read')}
-      </button>
-      <button type="button" className="primary-danger" onClick={doApply} disabled={busy}>
-        {t('chem.apply')}
-      </button>
-      <button type="button" onClick={doElvFactory} disabled={busy}>
-        {t('chem.factory')}
-      </button>
-      <button type="button" onClick={doGentle} disabled={busy}>
-        {t('chem.gentle')}
-      </button>
+    <div className="panel">
+      <div className="row chem-actions">
+        <button type="button" onClick={doRead} disabled={busy}>
+          {t('chem.read')}
+        </button>
+        <button type="button" className="primary-danger" onClick={doApply} disabled={busy}>
+          {t('chem.apply')}
+        </button>
+        <button type="button" onClick={doElvFactory} disabled={busy}>
+          {t('chem.factory')}
+        </button>
+        <button type="button" onClick={doGentle} disabled={busy}>
+          {t('chem.gentle')}
+        </button>
+      </div>
     </div>
   )
 
@@ -453,12 +455,6 @@ export function ChemistryParams() {
           />
         </>,
       )}
-
-      <div className="row chem-actions chem-actions-footer">
-        <button type="button" className="primary-danger" onClick={doApply} disabled={busy}>
-          {t('chem.apply')}
-        </button>
-      </div>
     </>
   )
 }

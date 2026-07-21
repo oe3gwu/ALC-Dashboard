@@ -909,6 +909,12 @@ label.field input, label.field select, label.field textarea {
   padding: 0.45rem 0.55rem;
   font-size: 0.9rem;
 }
+label.field.field-control-only {
+  gap: 0;
+}
+.logger-toolbar {
+  align-items: center;
+}
 label.field input.corrected {
   border-color: var(--danger);
   color: var(--danger);
@@ -1054,16 +1060,16 @@ label.field input.corrected {
   border-top: 1px solid var(--line);
 }
 
-.chem-actions {
-  margin-bottom: 1rem;
-  flex-wrap: wrap;
-  gap: 0.5rem;
-}
-.chem-actions-footer {
-  margin-top: 0.5rem;
-  margin-bottom: 0;
+.panel-actions {
+  margin-top: 1rem;
   padding-top: 0.85rem;
   border-top: 1px solid var(--line);
+}
+
+.chem-actions {
+  margin-bottom: 0;
+  flex-wrap: wrap;
+  gap: 0.5rem;
 }
 .chem-subtype {
   margin-top: 1rem;
