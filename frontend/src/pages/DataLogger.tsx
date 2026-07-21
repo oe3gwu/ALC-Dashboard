@@ -23,6 +23,7 @@ export function DataLogger() {
   const [msg, setMsg] = useState('')
   const [err, setErr] = useState('')
   const [busy, setBusy] = useState(false)
+  const [clearing, setClearing] = useState(false)
   const [progress, setProgress] = useState<ReadProgress | null>(null)
 
   const loadList = async () => {
@@ -112,6 +113,22 @@ export function DataLogger() {
     }
   }
 
+  const clearDeviceLogger = async () => {
+    setBusy(true)
+    setClearing(true)
+    setErr('')
+    setMsg('')
+    try {
+      await api.clearLogger(channel)
+      setMsg(t('log.cleared', { n: channel + 1 }))
+    } catch (e) {
+      setErr(String((e as Error).message || e))
+    } finally {
+      setBusy(false)
+      setClearing(false)
+    }
+  }
+
   return (
     <>
       <h1>{t('log.title')}</h1>
@@ -134,14 +151,10 @@ export function DataLogger() {
             </select>
           </label>
           <button className="primary" disabled={busy} onClick={download}>
-            {busy ? t('log.reading') : t('log.readDevice')}
+            {busy && !clearing ? t('log.reading') : t('log.readDevice')}
           </button>
-          <button
-            className="danger"
-            disabled={busy}
-            onClick={() => api.clearLogger(channel).then(() => setMsg(t('log.cleared')))}
-          >
-            {t('log.clear')}
+          <button className="danger" disabled={busy} onClick={() => void clearDeviceLogger()}>
+            {clearing ? t('log.clearing') : t('log.clear')}
           </button>
         </div>
         {busy && progress && (
