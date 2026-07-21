@@ -7,7 +7,8 @@ type ChannelSeries = {
   points: SeriesPoint[]
 }
 
-const SESSION_KEY = 'alc-live-series-v1'
+/** Bumped when filter semantics change so old glitchy series are discarded. */
+const SESSION_KEY = 'alc-live-series-v3'
 /** ~3 h at 1 Hz — beyond this the chart uses a sliding X window. */
 const MAX_POINTS = 10800
 
@@ -28,6 +29,18 @@ const IDLE_CLEAR_STREAK = 2
 /** Empty live payloads (disconnect race) before accepting wipe. */
 let emptySnapStreak = 0
 const EMPTY_SNAP_STREAK = 3
+
+type PendingSample = { v: number | null; i: number | null; c: number | null }
+type PendingState = { sample: PendingSample; confirms: number }
+const pendingByChannel = new Map<number, PendingState>()
+
+const GLITCH_V_ABS = 0.2 // V in one second
+const GLITCH_I_ABS = 80 // mA in one second
+const GLITCH_C_ABS = 25 // mAh in one second
+/** Need this many matching abrupt samples before accepting a step (kills 1–2 tick needles). */
+const CONFIRM_NEEDED = 2
+/** Absolute capacity above this is treated as wire garbage. */
+const CAPACITY_ABSURD = 15000
 
 function isIdle(c: ChannelParams | undefined): boolean {
   if (!c) return true
@@ -50,7 +63,7 @@ function persistToSession(): void {
     const channels: Record<string, ChannelSeries> = {}
     for (const [ch, series] of seriesByChannel) {
       if (series.points.length === 0) continue
-      channels[String(ch)] = series
+      channels[String(ch)] = { t0: series.t0, points: scrubPoints(series.points) }
     }
     if (Object.keys(channels).length === 0) {
       sessionStorage.removeItem(SESSION_KEY)
@@ -67,6 +80,9 @@ function hydrateFromSession(): void {
   if (hydrated || typeof sessionStorage === 'undefined') return
   hydrated = true
   try {
+    // Drop legacy keys that still contain needle spikes
+    sessionStorage.removeItem('alc-live-series-v1')
+    sessionStorage.removeItem('alc-live-series-v2')
     const raw = sessionStorage.getItem(SESSION_KEY)
     if (!raw) return
     const payload = JSON.parse(raw) as SessionPayload
@@ -74,9 +90,9 @@ function hydrateFromSession(): void {
     for (const [key, value] of Object.entries(payload.channels)) {
       const ch = Number(key)
       if (!Number.isFinite(ch) || !value?.points || !Array.isArray(value.points)) continue
-      const points = value.points
-        .filter((p) => p && typeof p.t === 'number')
-        .slice(-MAX_POINTS)
+      const points = scrubPoints(
+        value.points.filter((p) => p && typeof p.t === 'number').slice(-MAX_POINTS),
+      )
       if (points.length === 0) continue
       seriesByChannel.set(ch, {
         t0: typeof value.t0 === 'number' ? value.t0 : Date.now(),
@@ -91,6 +107,7 @@ function hydrateFromSession(): void {
 hydrateFromSession()
 
 function clearChannel(channel: number, silent = false): void {
+  pendingByChannel.delete(channel)
   if (!seriesByChannel.has(channel)) return
   seriesByChannel.delete(channel)
   if (!silent) {
@@ -104,6 +121,7 @@ export function clearSeries(channel: number): void {
 }
 
 export function clearAllSeries(): void {
+  pendingByChannel.clear()
   if (seriesByChannel.size === 0) return
   seriesByChannel.clear()
   persistToSession()
@@ -126,25 +144,119 @@ function anyRunning(): boolean {
   return channelsSnap.some((c) => !isIdle(c))
 }
 
-/** One-sample wire glitch: voltage collapses while current spikes (or vice versa). */
-function isGlitchSample(
+function metricAbrupt(
+  prev: number | null | undefined,
+  next: number | null | undefined,
+  absThresh: number,
+): boolean {
+  if (prev == null || next == null) {
+    return (prev == null) !== (next == null)
+  }
+  return Math.abs(prev - next) >= absThresh
+}
+
+function sanitizeRaw(raw: PendingSample): PendingSample {
+  let { v, i, c } = raw
+  if (c != null && (c < 0 || c > CAPACITY_ABSURD)) c = null
+  if (i != null && Math.abs(i) > 20000) i = null
+  if (v != null && (v < -1 || v > 80)) v = null
+  return { v, i, c }
+}
+
+/** True if U, I, or C jumped harder than a plausible 1 Hz process step. */
+export function isAbruptSample(
   prev: SeriesPoint,
   v: number | null,
   i: number | null,
+  c: number | null,
 ): boolean {
-  const pv = prev.v
-  const pi = prev.i
-  if (pv == null || v == null) return false
-  // U was healthy (>2 V) and collapses to near 0 in one tick
-  const voltageCollapse = pv > 2 && v < 0.5
-  if (!voltageCollapse) return false
-  // …while I jumps from near-zero / missing to a large charge-like value
-  const prevI = pi ?? 0
-  const curI = i ?? 0
-  if (Math.abs(prevI) < 100 && Math.abs(curI) > 500) return true
-  // …or U collapses alone with no plausible gradual change
-  if (Math.abs(pv - v) > 5) return true
-  return false
+  return (
+    metricAbrupt(prev.v, v, GLITCH_V_ABS) ||
+    metricAbrupt(prev.i, i, GLITCH_I_ABS) ||
+    metricAbrupt(prev.c, c, GLITCH_C_ABS)
+  )
+}
+
+function nearSample(a: PendingSample, b: PendingSample): boolean {
+  return !isAbruptSample({ t: 0, v: a.v, i: a.i, c: a.c }, b.v, b.i, b.c)
+}
+
+/**
+ * Replace isolated spikes where a point differs from both neighbors (post-hoc scrub).
+ */
+export function scrubPoints(points: SeriesPoint[]): SeriesPoint[] {
+  if (points.length < 3) return points
+  const out = points.map((p) => ({ ...p }))
+  for (let i = 1; i < out.length - 1; i++) {
+    const prev = out[i - 1]
+    const cur = out[i]
+    const next = out[i + 1]
+    if (nearSample(prev, next) && isAbruptSample(prev, cur.v, cur.i, cur.c)) {
+      out[i] = { t: cur.t, v: prev.v, i: prev.i, c: prev.c }
+    }
+  }
+  return out
+}
+
+/**
+ * Hold abrupt samples until CONFIRM_NEEDED matching ticks (filters 1–2s needles on all channels).
+ */
+function resolveSample(
+  channel: number,
+  prev: SeriesPoint | null,
+  incoming: PendingSample,
+): PendingSample {
+  const raw = sanitizeRaw(incoming)
+  if (!prev) {
+    pendingByChannel.delete(channel)
+    return raw
+  }
+
+  const pending = pendingByChannel.get(channel)
+  if (pending) {
+    if (nearSample(pending.sample, raw)) {
+      const confirms = pending.confirms + 1
+      if (confirms >= CONFIRM_NEEDED) {
+        pendingByChannel.delete(channel)
+        return raw
+      }
+      pendingByChannel.set(channel, { sample: raw, confirms })
+      return { v: prev.v, i: prev.i, c: prev.c }
+    }
+    if (nearSample(prev, raw)) {
+      // Pending was a short glitch; resume stable path
+      pendingByChannel.delete(channel)
+      return raw
+    }
+    // New distinct jump: restart pending from raw, keep holding previous stable
+    pendingByChannel.set(channel, { sample: raw, confirms: 1 })
+    return { v: prev.v, i: prev.i, c: prev.c }
+  }
+
+  if (isAbruptSample(prev, raw.v, raw.i, raw.c)) {
+    pendingByChannel.set(channel, { sample: raw, confirms: 1 })
+    return { v: prev.v, i: prev.i, c: prev.c }
+  }
+
+  return raw
+}
+
+function appendPoint(series: ChannelSeries, now: number, sample: PendingSample): void {
+  series.points = [
+    ...series.points,
+    {
+      t: (now - series.t0) / 1000,
+      v: sample.v,
+      i: sample.i,
+      c: sample.c,
+    },
+  ].slice(-MAX_POINTS)
+  // Keep stored history free of sandwich spikes
+  if (series.points.length >= 3) {
+    const n = series.points.length
+    const scrubbed = scrubPoints(series.points.slice(-5))
+    series.points = [...series.points.slice(0, Math.max(0, n - 5)), ...scrubbed].slice(-MAX_POINTS)
+  }
 }
 
 function syncTimer(): void {
@@ -163,19 +275,17 @@ function sampleTick(): void {
   let changed = false
   const now = Date.now()
 
-  // Transient empty snapshot: keep appending last known measurements for active series
   if (channelsSnap.length === 0) {
     for (const [ch, series] of seriesByChannel) {
       const m = measurementsSnap.find((x) => x.channel === ch)
-      series.points = [
-        ...series.points,
-        {
-          t: (now - series.t0) / 1000,
-          v: m?.voltage_V ?? series.points.at(-1)?.v ?? null,
-          i: m?.current_mA ?? series.points.at(-1)?.i ?? null,
-          c: m?.capacity_mAh ?? series.points.at(-1)?.c ?? null,
-        },
-      ].slice(-MAX_POINTS)
+      const prev = series.points.at(-1) ?? null
+      const raw = {
+        v: m?.voltage_V ?? prev?.v ?? null,
+        i: m?.current_mA ?? prev?.i ?? null,
+        c: m?.capacity_mAh ?? prev?.c ?? null,
+      }
+      const sample = resolveSample(ch, prev, raw)
+      appendPoint(series, now, sample)
       changed = true
     }
     if (changed) {
@@ -187,8 +297,6 @@ function sampleTick(): void {
 
   for (const chParams of channelsSnap) {
     const ch = chParams.channel
-    // Idle channels: do not sample. Clearing is handled in updateLiveSnapshot
-    // (with streak guard) so a one-tick Leerlauf glitch cannot wipe the chart.
     if (isIdle(chParams)) continue
 
     const m = measurementsSnap.find((x) => x.channel === ch)
@@ -198,35 +306,21 @@ function sampleTick(): void {
       seriesByChannel.set(ch, series)
     }
 
-    let v = m?.voltage_V ?? null
-    let i = m?.current_mA ?? null
-    let c = m?.capacity_mAh ?? null
-
-    // Drop single-sample glitches (e.g. U→0 + I spike during Pause/Warten) that
-    // flash too briefly for the numeric readout but stay visible on the chart.
-    const prev = series.points.length > 0 ? series.points[series.points.length - 1] : null
-    if (prev && isGlitchSample(prev, v, i)) {
-      v = prev.v
-      i = prev.i
-      c = prev.c
+    const raw = {
+      v: m?.voltage_V ?? null,
+      i: m?.current_mA ?? null,
+      c: m?.capacity_mAh ?? null,
     }
-
-    series.points = [
-      ...series.points,
-      {
-        t: (now - series.t0) / 1000,
-        v,
-        i,
-        c,
-      },
-    ].slice(-MAX_POINTS)
+    const prev = series.points.length > 0 ? series.points[series.points.length - 1] : null
+    const sample = resolveSample(ch, prev, raw)
+    appendPoint(series, now, sample)
     changed = true
   }
 
-  // Drop series for channels no longer present (only when we have a non-empty snap)
   const known = new Set(channelsSnap.map((c) => c.channel))
   for (const ch of [...seriesByChannel.keys()]) {
     if (!known.has(ch)) {
+      pendingByChannel.delete(ch)
       seriesByChannel.delete(ch)
       changed = true
     }
@@ -248,7 +342,6 @@ export function updateLiveSnapshot(channels: ChannelParams[], measurements: Meas
   if (channels.length === 0) {
     emptySnapStreak += 1
     if (emptySnapStreak < EMPTY_SNAP_STREAK) {
-      // Keep previous snap so the 1 Hz timer / series survive disconnect races.
       syncTimer()
       return
     }
@@ -256,7 +349,6 @@ export function updateLiveSnapshot(channels: ChannelParams[], measurements: Meas
     emptySnapStreak = 0
   }
 
-  // Trust list order as channel index — device wire may echo a wrong channel byte.
   channelsSnap = channels.map((c, idx) => ({ ...c, channel: idx }))
   measurementsSnap =
     measurements.length === channelsSnap.length
@@ -272,14 +364,12 @@ export function updateLiveSnapshot(channels: ChannelParams[], measurements: Meas
       const streak = (idleStreakByChannel.get(ch) ?? 0) + 1
       idleStreakByChannel.set(ch, streak)
       if (streak >= IDLE_CLEAR_STREAK && seriesByChannel.has(ch)) {
+        pendingByChannel.delete(ch)
         seriesByChannel.delete(ch)
         cleared = true
       }
     } else {
       idleStreakByChannel.set(ch, 0)
-      // Intentionally no idle→running wipe here: a single Leerlauf flicker followed
-      // by "running" again used to delete the whole series (looked like a chart reset).
-      // New processes call clearSeries() from Start; ended processes clear via streak.
     }
   }
   if (cleared) {
