@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { api } from '../api'
 import { ChartModeToggle, ChartPanel } from '../components/ChartPanel'
@@ -93,11 +93,24 @@ function ChannelCard({ ch }: { ch: number }) {
   )
 }
 
+/** Delay offline banner so F5 / slow first WS does not flash "Nicht verbunden". */
+const OFFLINE_BANNER_DELAY_MS = 3000
+
 export function Dashboard() {
   const { connection } = useLive()
   const { capabilities } = useCapabilities()
   const { t } = useLocale()
   const channels = Array.from({ length: capabilities.channel_count }, (_, i) => i)
+  const [showOffline, setShowOffline] = useState(false)
+
+  useEffect(() => {
+    if (!connection || connection.connected) {
+      setShowOffline(false)
+      return
+    }
+    const id = window.setTimeout(() => setShowOffline(true), OFFLINE_BANNER_DELAY_MS)
+    return () => window.clearTimeout(id)
+  }, [connection])
 
   return (
     <div className="page-channels">
@@ -108,7 +121,7 @@ export function Dashboard() {
         </Link>
       </div>
 
-      {!connection?.connected && (
+      {showOffline && (
         <div className="toast">
           {t('dash.notConnected')} <Link to="/settings">{t('dash.toSettings')}</Link> {t('dash.orSimulator')}
         </div>
