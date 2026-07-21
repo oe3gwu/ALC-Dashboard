@@ -21,6 +21,8 @@ export const en: Record<MessageKey, string> = {
   'sidebar.modeSim': 'Simulator (Time: ×10)',
   'sidebar.modeError': 'Error',
   'sidebar.offline': 'Offline',
+  'live.connectionLost': 'Connection lost',
+  'live.connectionLostHint': 'No connection to the dashboard server. Retrying…',
   'sidebar.temps': 'Temperatures',
   'sidebar.heatsink': 'Heatsink',
   'sidebar.psu': 'PSU',

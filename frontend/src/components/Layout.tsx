@@ -52,7 +52,7 @@ function useSerialLedPulse(seq: number) {
 }
 
 export function Layout() {
-  const { connection, temperatures } = useLive()
+  const { connection, temperatures, backendOnline } = useLive()
   const { capabilities, devices, deviceModel } = useCapabilities()
   const { theme, toggle: toggleTheme } = useTheme()
   const { locale, toggle: toggleLocale, t } = useLocale()
@@ -191,6 +191,15 @@ export function Layout() {
       <main className="main">
         <Outlet />
       </main>
+
+      {!backendOnline && (
+        <div className="live-lost-backdrop" role="alert" aria-live="assertive">
+          <div className="live-lost-dialog">
+            <div className="live-lost-title">{t('live.connectionLost')}</div>
+            <p className="live-lost-hint">{t('live.connectionLostHint')}</p>
+          </div>
+        </div>
+      )}
     </div>
   )
 }

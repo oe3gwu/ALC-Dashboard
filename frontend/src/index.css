@@ -47,6 +47,7 @@
   --toast-ok-border: rgba(0, 166, 90, 0.4);
   --toast-ok-text: #7ddea8;
   --modal-backdrop: rgba(0, 0, 0, 0.55);
+  --live-lost-backdrop: rgba(72, 80, 88, 0.62);
   --switch-track: #3e464c;
   --switch-knob: #bec5cb;
   --header-bg: #2a7ab0;
@@ -101,6 +102,7 @@
   --toast-ok-border: rgba(0, 166, 90, 0.35);
   --toast-ok-text: #00733e;
   --modal-backdrop: rgba(0, 0, 0, 0.4);
+  --live-lost-backdrop: rgba(110, 118, 126, 0.58);
   --switch-track: rgba(255, 255, 255, 0.35);
   --switch-knob: #ffffff;
   --header-bg: #2a7ab0;
@@ -1183,6 +1185,48 @@ label.field input.corrected {
   border: 1px solid var(--line);
   border-radius: var(--radius);
   padding: 1.25rem;
+}
+
+/* Backend / live link lost — grey wash, dialog centered on main (4-channel cross). */
+.live-lost-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 80;
+  background: var(--live-lost-backdrop);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: var(--header-height, 3.25rem) 1rem 1rem calc(var(--sidebar-width, 14.5rem) + 1rem);
+  pointer-events: auto;
+}
+.live-lost-dialog {
+  width: min(28rem, 100%);
+  background: var(--bg1);
+  border: 1px solid var(--line);
+  border-top: 3px solid var(--accent);
+  border-radius: var(--radius);
+  padding: 1.75rem 1.5rem;
+  text-align: center;
+  box-shadow: 0 12px 40px rgba(0, 0, 0, 0.28);
+}
+.live-lost-title {
+  margin: 0;
+  font-size: 1.55rem;
+  font-weight: 700;
+  letter-spacing: 0.01em;
+  color: var(--text);
+}
+.live-lost-hint {
+  margin: 0.65rem 0 0;
+  font-size: 0.95rem;
+  color: var(--muted);
+  line-height: 1.45;
+}
+@media (max-width: 1100px) {
+  .live-lost-backdrop {
+    padding: 1rem;
+    padding-top: calc(var(--header-height, 3.25rem) + 4.5rem);
+  }
 }
 
 ol.steps { padding-left: 1.2rem; color: var(--muted); }

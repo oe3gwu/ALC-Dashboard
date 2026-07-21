@@ -19,6 +19,8 @@ export const de = {
   'sidebar.modeSim': 'Simulator (Zeit: ×10)',
   'sidebar.modeError': 'Error',
   'sidebar.offline': 'Offline',
+  'live.connectionLost': 'Verbindung getrennt',
+  'live.connectionLostHint': 'Keine Verbindung zum Dashboard-Server. Versuche erneut…',
   'sidebar.temps': 'Temperaturen',
   'sidebar.heatsink': 'Kühlkörper',
   'sidebar.psu': 'Netzteil',

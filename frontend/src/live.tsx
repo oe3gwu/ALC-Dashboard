@@ -8,6 +8,8 @@ type LiveCtx = {
   measurements: Measurement[]
   temperatures: Record<string, number | null>
   connection: LivePayload['connection']
+  /** False when the UI cannot reach the dashboard backend (WS/HTTP). */
+  backendOnline: boolean
   refresh: () => Promise<void>
 }
 
@@ -16,17 +18,34 @@ const Ctx = createContext<LiveCtx | null>(null)
 /** No WS message for this long → HTTP fallback + reconnect attempt. */
 const WS_STALE_MS = 5000
 const WATCHDOG_MS = 2000
+/** Declare backend lost after this long without a successful live payload. */
+const BACKEND_OFFLINE_AFTER_MS = 8000
 
 export function LiveProvider({ children }: { children: ReactNode }) {
   const [channels, setChannels] = useState<ChannelParams[]>([])
   const [measurements, setMeasurements] = useState<Measurement[]>([])
   const [temperatures, setTemperatures] = useState<Record<string, number | null>>({})
   const [connection, setConnection] = useState<LivePayload['connection']>()
+  const [backendOnline, setBackendOnline] = useState(true)
   const channelsRef = useRef(channels)
   const measurementsRef = useRef(measurements)
   const stageStateRef = useRef(createStageStabilizeState())
+  const lastGoodAtRef = useRef(Date.now())
+
+  const markBackendGood = () => {
+    lastGoodAtRef.current = Date.now()
+    setBackendOnline(true)
+  }
+
+  const markBackendLostIfStale = () => {
+    if (typeof document !== 'undefined' && document.visibilityState === 'hidden') return
+    if (Date.now() - lastGoodAtRef.current >= BACKEND_OFFLINE_AFTER_MS) {
+      setBackendOnline(false)
+    }
+  }
 
   const apply = (data: LivePayload) => {
+    markBackendGood()
     if (data.channels) {
       const stable = stabilizeChannels(stageStateRef.current, data.channels)
       channelsRef.current = stable
@@ -49,8 +68,9 @@ export function LiveProvider({ children }: { children: ReactNode }) {
       apply(data)
       const c = await api.connection()
       setConnection(c)
+      markBackendGood()
     } catch {
-      /* offline */
+      markBackendLostIfStale()
     }
   }
 
@@ -93,6 +113,7 @@ export function LiveProvider({ children }: { children: ReactNode }) {
       })
       ws.onclose = () => {
         if (unmounted) return
+        markBackendLostIfStale()
         retry = setTimeout(connect, 1500)
       }
     }
@@ -132,6 +153,7 @@ export function LiveProvider({ children }: { children: ReactNode }) {
         void refreshRef.current()
         ensureConnected()
       }
+      markBackendLostIfStale()
     }, WATCHDOG_MS)
 
     window.addEventListener('pagehide', onPageHide)
@@ -148,8 +170,8 @@ export function LiveProvider({ children }: { children: ReactNode }) {
   }, [])
 
   const value = useMemo(
-    () => ({ channels, measurements, temperatures, connection, refresh }),
-    [channels, measurements, temperatures, connection],
+    () => ({ channels, measurements, temperatures, connection, backendOnline, refresh }),
+    [channels, measurements, temperatures, connection, backendOnline],
   )
 
   return <Ctx.Provider value={value}>{children}</Ctx.Provider>
