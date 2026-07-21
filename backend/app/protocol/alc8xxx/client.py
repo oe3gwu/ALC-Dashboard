@@ -94,7 +94,7 @@ class Alc8xxxClient:
         for ch in range(self.channel_count):
             o = ch * stride
             if o + stride > len(data):
-                out.append(ChannelMeasurement(channel=ch, voltage_V=0.0, current_mA=0.0, capacity_mAh=0.0))
+                out.append(ChannelMeasurement(channel=ch, voltage_V=None, current_mA=None, capacity_mAh=None))
                 continue
             u = u16(data, o)
             i = u16(data, o + 2)
@@ -102,9 +102,10 @@ class Alc8xxxClient:
             out.append(
                 ChannelMeasurement(
                     channel=ch,
-                    voltage_V=voltage_from_digits(u) if u != INVALID_MEASURE else 0.0,
-                    current_mA=current_from_digits(i, allow_invalid=True) if i != INVALID_MEASURE else 0.0,
-                    capacity_mAh=capacity_from_digits(c) if c not in (0xFFFFFFFF, 0) else 0.0,
+                    # INVALID / missing must be null — 0.0 draws chart needles to the axis.
+                    voltage_V=voltage_from_digits(u),
+                    current_mA=current_from_digits(i, allow_invalid=True),
+                    capacity_mAh=capacity_from_digits(c) if c != 0xFFFFFFFF else None,
                 )
             )
         return out

@@ -988,15 +988,22 @@ if FRONTEND_DIST.exists():
     @app.get("/{full_path:path}")
     async def spa_fallback(full_path: str) -> FileResponse:
         """Serve built files, otherwise index.html for client-side routes."""
+        headers_no_cache = {"Cache-Control": "no-cache, no-store, must-revalidate"}
         if full_path:
             candidate = (FRONTEND_DIST / full_path).resolve()
             try:
                 candidate.relative_to(FRONTEND_DIST.resolve())
             except ValueError:
-                return FileResponse(FRONTEND_DIST / "index.html")
+                return FileResponse(FRONTEND_DIST / "index.html", headers=headers_no_cache)
             if candidate.is_file():
+                # Hashed /assets/* can be cached; HTML + SW must always revalidate.
+                name = candidate.name
+                if name in ("index.html", "sw.js", "manifest.webmanifest") or full_path.endswith(
+                    (".html", "sw.js", "manifest.webmanifest")
+                ):
+                    return FileResponse(candidate, headers=headers_no_cache)
                 return FileResponse(candidate)
-        return FileResponse(FRONTEND_DIST / "index.html")
+        return FileResponse(FRONTEND_DIST / "index.html", headers=headers_no_cache)
 
 
 def run() -> None:

@@ -8,7 +8,7 @@ type ChannelSeries = {
 }
 
 /** Bumped when filter semantics change so old glitchy series are discarded. */
-const SESSION_KEY = 'alc-live-series-v3'
+const SESSION_KEY = 'alc-live-series-v6'
 /** ~3 h at 1 Hz — beyond this the chart uses a sliding X window. */
 const MAX_POINTS = 10800
 
@@ -31,16 +31,20 @@ let emptySnapStreak = 0
 const EMPTY_SNAP_STREAK = 3
 
 type PendingSample = { v: number | null; i: number | null; c: number | null }
-type PendingState = { sample: PendingSample; confirms: number }
+type MetricKey = 'v' | 'i' | 'c'
+type MetricPending = { value: number | null; confirms: number }
+type PendingState = Partial<Record<MetricKey, MetricPending>>
 const pendingByChannel = new Map<number, PendingState>()
 
-const GLITCH_V_ABS = 0.2 // V in one second
-const GLITCH_I_ABS = 80 // mA in one second
-const GLITCH_C_ABS = 25 // mAh in one second
-/** Need this many matching abrupt samples before accepting a step (kills 1–2 tick needles). */
-const CONFIRM_NEEDED = 2
+const GLITCH_V_ABS = 0.15 // V in one second
+const GLITCH_I_ABS = 60 // mA in one second
+const GLITCH_C_ABS = 20 // mAh in one second
+/** Confirms before accepting a non-collapse abrupt step (ramps, stage changes). */
+const CONFIRM_DEFAULT = 3
 /** Absolute capacity above this is treated as wire garbage. */
 const CAPACITY_ABSURD = 15000
+/** Scrub collapse/spike runs up to this many seconds between two stable neighbors. */
+const SCRUB_RUN_MAX = 20
 
 function isIdle(c: ChannelParams | undefined): boolean {
   if (!c) return true
@@ -81,8 +85,15 @@ function hydrateFromSession(): void {
   hydrated = true
   try {
     // Drop legacy keys that still contain needle spikes
-    sessionStorage.removeItem('alc-live-series-v1')
-    sessionStorage.removeItem('alc-live-series-v2')
+    for (const legacy of [
+      'alc-live-series-v1',
+      'alc-live-series-v2',
+      'alc-live-series-v3',
+      'alc-live-series-v4',
+      'alc-live-series-v5',
+    ]) {
+      sessionStorage.removeItem(legacy)
+    }
     const raw = sessionStorage.getItem(SESSION_KEY)
     if (!raw) return
     const payload = JSON.parse(raw) as SessionPayload
@@ -130,7 +141,7 @@ export function clearAllSeries(): void {
 
 export function getSeries(channel: number): SeriesPoint[] {
   const pts = seriesByChannel.get(channel)?.points
-  return pts ? [...pts] : []
+  return pts ? scrubPoints(pts) : []
 }
 
 export function subscribe(listener: () => void): () => void {
@@ -155,6 +166,12 @@ function metricAbrupt(
   return Math.abs(prev - next) >= absThresh
 }
 
+function threshFor(key: MetricKey): number {
+  if (key === 'v') return GLITCH_V_ABS
+  if (key === 'i') return GLITCH_I_ABS
+  return GLITCH_C_ABS
+}
+
 function sanitizeRaw(raw: PendingSample): PendingSample {
   let { v, i, c } = raw
   if (c != null && (c < 0 || c > CAPACITY_ABSURD)) c = null
@@ -177,29 +194,157 @@ export function isAbruptSample(
   )
 }
 
-function nearSample(a: PendingSample, b: PendingSample): boolean {
-  return !isAbruptSample({ t: 0, v: a.v, i: a.i, c: a.c }, b.v, b.i, b.c)
+function nearMetric(a: number | null | undefined, b: number | null | undefined, key: MetricKey): boolean {
+  return !metricAbrupt(a, b, threshFor(key))
+}
+
+/** Near-zero / missing reading for a metric (the needle tip). */
+export function isCollapsedValue(value: number | null | undefined, key: MetricKey): boolean {
+  if (value == null) return true
+  if (key === 'i') return Math.abs(value) < 40
+  if (key === 'c') return value < 5
+  return value < 0.25
+}
+
+/** Previously healthy level that should not snap to the axis. */
+export function isStableValue(value: number | null | undefined, key: MetricKey): boolean {
+  if (value == null) return false
+  if (key === 'i') return Math.abs(value) >= 120
+  if (key === 'c') return value >= 30
+  return value >= 1.2
 }
 
 /**
- * Replace isolated spikes where a point differs from both neighbors (post-hoc scrub).
+ * Stable → ~0/null collapse (U/I/C needles). Never accept into the series while running;
+ * idle clear removes the chart when the process actually ends.
+ */
+export function isMetricCollapse(
+  key: MetricKey,
+  prev: number | null | undefined,
+  next: number | null | undefined,
+): boolean {
+  return isStableValue(prev, key) && isCollapsedValue(next, key)
+}
+
+export function isCurrentCollapse(prevI: number | null | undefined, nextI: number | null | undefined): boolean {
+  return isMetricCollapse('i', prevI, nextI)
+}
+
+export function isCapacityCollapse(prevC: number | null | undefined, nextC: number | null | undefined): boolean {
+  return isMetricCollapse('c', prevC, nextC)
+}
+
+/**
+ * Replace collapse/spike runs where both neighbors are a stable plateau.
+ * Never spreads collapsed zeros into good data (left must be stable).
  */
 export function scrubPoints(points: SeriesPoint[]): SeriesPoint[] {
   if (points.length < 3) return points
   const out = points.map((p) => ({ ...p }))
-  for (let i = 1; i < out.length - 1; i++) {
-    const prev = out[i - 1]
-    const cur = out[i]
-    const next = out[i + 1]
-    if (nearSample(prev, next) && isAbruptSample(prev, cur.v, cur.i, cur.c)) {
-      out[i] = { t: cur.t, v: prev.v, i: prev.i, c: prev.c }
+  const keys: MetricKey[] = ['v', 'i', 'c']
+
+  for (const key of keys) {
+    let i = 1
+    while (i < out.length - 1) {
+      if (!isStableValue(out[i - 1][key], key)) {
+        i += 1
+        continue
+      }
+      if (!metricAbrupt(out[i - 1][key], out[i][key], threshFor(key))) {
+        i += 1
+        continue
+      }
+
+      const runStart = i
+      while (i < out.length && metricAbrupt(out[runStart - 1][key], out[i][key], threshFor(key))) {
+        i += 1
+      }
+      const runLen = i - runStart
+      if (runLen < 1 || runLen > SCRUB_RUN_MAX || i >= out.length) continue
+
+      const left = out[runStart - 1][key]
+      const right = out[i][key]
+      if (!isStableValue(left, key) || !nearMetric(left, right, key)) continue
+
+      // Prefer filling collapses; also patch brief non-collapse spikes between plateaus.
+      let fill = true
+      const collapseRun = Array.from({ length: runLen }, (_, j) =>
+        isCollapsedValue(out[runStart + j][key], key),
+      ).every(Boolean)
+      if (!collapseRun) {
+        // Non-collapse spike: every point must be abrupt vs both neighbors' plateau.
+        for (let j = 0; j < runLen; j++) {
+          if (!metricAbrupt(left, out[runStart + j][key], threshFor(key))) {
+            fill = false
+            break
+          }
+        }
+      }
+      if (!fill) continue
+
+      for (let j = 0; j < runLen; j++) {
+        const t = (j + 1) / (runLen + 1)
+        const interpolated =
+          left != null && right != null ? left + (right - left) * t : left
+        out[runStart + j] = { ...out[runStart + j], [key]: interpolated }
+      }
     }
   }
   return out
 }
 
+function resolveMetric(
+  pending: PendingState,
+  key: MetricKey,
+  prev: number | null,
+  raw: number | null,
+): number | null {
+  // Collapses (stable → ~0/null) are never written while the channel is running.
+  if (isMetricCollapse(key, prev, raw)) {
+    pending[key] = { value: raw, confirms: (pending[key]?.confirms ?? 0) + 1 }
+    return prev
+  }
+
+  const slot = pending[key]
+  if (slot) {
+    if (isMetricCollapse(key, prev, slot.value)) {
+      // Pending collapse: resume only when raw is back near the stable prev.
+      if (nearMetric(prev, raw, key)) {
+        delete pending[key]
+        return raw
+      }
+      pending[key] = { value: raw, confirms: slot.confirms + 1 }
+      return prev
+    }
+
+    if (nearMetric(slot.value, raw, key)) {
+      const confirms = slot.confirms + 1
+      if (confirms >= CONFIRM_DEFAULT) {
+        delete pending[key]
+        return raw
+      }
+      pending[key] = { value: raw, confirms }
+      return prev
+    }
+    if (nearMetric(prev, raw, key)) {
+      delete pending[key]
+      return raw
+    }
+    pending[key] = { value: raw, confirms: 1 }
+    return prev
+  }
+
+  if (metricAbrupt(prev, raw, threshFor(key))) {
+    pending[key] = { value: raw, confirms: 1 }
+    return prev
+  }
+
+  return raw
+}
+
 /**
- * Hold abrupt samples until CONFIRM_NEEDED matching ticks (filters 1–2s needles on all channels).
+ * Hold abrupt metrics until enough matching ticks (filters multi-second needles).
+ * Metrics are independent so a current glitch does not freeze voltage/capacity.
  */
 function resolveSample(
   channel: number,
@@ -212,33 +357,23 @@ function resolveSample(
     return raw
   }
 
-  const pending = pendingByChannel.get(channel)
-  if (pending) {
-    if (nearSample(pending.sample, raw)) {
-      const confirms = pending.confirms + 1
-      if (confirms >= CONFIRM_NEEDED) {
-        pendingByChannel.delete(channel)
-        return raw
-      }
-      pendingByChannel.set(channel, { sample: raw, confirms })
-      return { v: prev.v, i: prev.i, c: prev.c }
-    }
-    if (nearSample(prev, raw)) {
-      // Pending was a short glitch; resume stable path
-      pendingByChannel.delete(channel)
-      return raw
-    }
-    // New distinct jump: restart pending from raw, keep holding previous stable
-    pendingByChannel.set(channel, { sample: raw, confirms: 1 })
-    return { v: prev.v, i: prev.i, c: prev.c }
+  let pending = pendingByChannel.get(channel)
+  if (!pending) {
+    pending = {}
+    pendingByChannel.set(channel, pending)
   }
 
-  if (isAbruptSample(prev, raw.v, raw.i, raw.c)) {
-    pendingByChannel.set(channel, { sample: raw, confirms: 1 })
-    return { v: prev.v, i: prev.i, c: prev.c }
+  const sample: PendingSample = {
+    v: resolveMetric(pending, 'v', prev.v, raw.v),
+    i: resolveMetric(pending, 'i', prev.i, raw.i),
+    c: resolveMetric(pending, 'c', prev.c, raw.c),
   }
 
-  return raw
+  if (Object.keys(pending).length === 0) {
+    pendingByChannel.delete(channel)
+  }
+
+  return sample
 }
 
 function appendPoint(series: ChannelSeries, now: number, sample: PendingSample): void {
@@ -251,11 +386,12 @@ function appendPoint(series: ChannelSeries, now: number, sample: PendingSample):
       c: sample.c,
     },
   ].slice(-MAX_POINTS)
-  // Keep stored history free of sandwich spikes
+  // Keep stored history free of sandwich spikes (wider window than before)
   if (series.points.length >= 3) {
     const n = series.points.length
-    const scrubbed = scrubPoints(series.points.slice(-5))
-    series.points = [...series.points.slice(0, Math.max(0, n - 5)), ...scrubbed].slice(-MAX_POINTS)
+    const window = Math.min(n, SCRUB_RUN_MAX * 2 + 3)
+    const scrubbed = scrubPoints(series.points.slice(-window))
+    series.points = [...series.points.slice(0, Math.max(0, n - window)), ...scrubbed].slice(-MAX_POINTS)
   }
 }
 
