@@ -840,25 +840,25 @@ button:hover, .btn:hover {
   border-color: var(--accent-dim);
   color: var(--text);
 }
-button.primary {
+button.primary, .btn.primary {
   background: var(--accent);
   border-color: var(--accent-dim);
   color: var(--primary-text);
   font-weight: 600;
 }
-button.primary:hover {
+button.primary:hover, .btn.primary:hover {
   background: var(--accent-dim);
   border-color: var(--accent-dim);
   color: var(--primary-text);
 }
 /* Same solid primary style, red fill (chemistry apply, etc.) */
-button.primary-danger {
+button.primary-danger, .btn.primary-danger {
   background: var(--danger-solid);
   border-color: var(--danger-solid-dim);
   color: var(--primary-text);
   font-weight: 600;
 }
-button.primary-danger:hover {
+button.primary-danger:hover, .btn.primary-danger:hover {
   background: var(--danger-solid-dim);
   border-color: var(--danger-solid-dim);
   color: var(--primary-text);
