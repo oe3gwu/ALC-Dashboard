@@ -307,37 +307,6 @@ export function Settings() {
       {msg && <div className="toast ok">{msg}</div>}
       {err && <div className="toast error">{err}</div>}
 
-      <div className="panel" style={{ marginTop: '1.5rem' }}>
-        <h2>{t('set.appearance')}</h2>
-        <p className="lead" style={{ marginTop: 0 }}>
-          {t('set.appearanceLead')}
-        </p>
-        <div className="form-grid">
-          <label className="field">
-            {t('set.themePack')}
-            <select
-              value={themePack}
-              onChange={(e) => setThemePack(e.target.value as ThemePackId)}
-            >
-              {packs.map((p) => (
-                <option key={p.id} value={p.id}>
-                  {p.label}
-                </option>
-              ))}
-            </select>
-            <span className="field-hint">{t('set.themePackHint')}</span>
-          </label>
-          <label className="field">
-            {t('set.themeMode')}
-            <select value={theme} onChange={(e) => setTheme(e.target.value as ThemeMode)}>
-              <option value="light">{t('set.themeModeLight')}</option>
-              <option value="dark">{t('set.themeModeDark')}</option>
-            </select>
-            <span className="field-hint">{t('set.themeModeHint')}</span>
-          </label>
-        </div>
-      </div>
-
       {showDeviceDisplay && (
         <>
           <div className="panel" style={{ marginTop: '1.5rem' }}>
@@ -420,6 +389,37 @@ export function Settings() {
           {setupErr && <div className="toast error">{setupErr}</div>}
         </>
       )}
+
+      <div className="panel" style={{ marginTop: '1.5rem' }}>
+        <h2>{t('set.appearance')}</h2>
+        <p className="lead" style={{ marginTop: 0 }}>
+          {t('set.appearanceLead')}
+        </p>
+        <div className="form-grid">
+          <label className="field">
+            {t('set.themePack')}
+            <select
+              value={themePack}
+              onChange={(e) => setThemePack(e.target.value as ThemePackId)}
+            >
+              {packs.map((p) => (
+                <option key={p.id} value={p.id}>
+                  {p.label}
+                </option>
+              ))}
+            </select>
+            <span className="field-hint">{t('set.themePackHint')}</span>
+          </label>
+          <label className="field">
+            {t('set.themeMode')}
+            <select value={theme} onChange={(e) => setTheme(e.target.value as ThemeMode)}>
+              <option value="light">{t('set.themeModeLight')}</option>
+              <option value="dark">{t('set.themeModeDark')}</option>
+            </select>
+            <span className="field-hint">{t('set.themeModeHint')}</span>
+          </label>
+        </div>
+      </div>
     </>
   )
 }
