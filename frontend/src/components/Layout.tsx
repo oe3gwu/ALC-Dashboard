@@ -55,8 +55,11 @@ function useSerialLedPulse(seq: number) {
 export function Layout() {
   const { connection, temperatures, backendOnline } = useLive()
   const { capabilities, devices, deviceModel } = useCapabilities()
-  const { theme, toggle: toggleTheme } = useTheme()
+  const { theme, toggle: toggleTheme, themePack, packs } = useTheme()
   const { locale, toggle: toggleLocale, t } = useLocale()
+  const packMeta = packs.find((p) => p.id === themePack) ?? packs[0]
+  const brandLogo = packMeta.logoSrc || '/elv-logo.png'
+  const brandAlt = packMeta.logoAlt || packMeta.label
 
   const connected = Boolean(connection?.connected)
   const isSim = Boolean(connection?.simulator ?? connection?.mock)
@@ -86,7 +89,7 @@ export function Layout() {
   return (
     <div className="app">
       <div className="brand-bar">
-        <img className="brand-logo" src="/elv-logo.png" alt="ELV" width={119} height={64} />
+        <img className="brand-logo" src={brandLogo} alt={brandAlt} />
         <strong>ALC Dashboard</strong>
       </div>
       <header className="topbar">

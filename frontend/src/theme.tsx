@@ -1,18 +1,32 @@
 import { createContext, useContext, useEffect, useMemo, useState, type ReactNode } from 'react'
+import {
+  DEFAULT_THEME_PACK,
+  THEME_PACKS,
+  isThemePackId,
+  type ThemePackId,
+} from './themePacks'
 
-export type Theme = 'dark' | 'light'
+export type ThemeMode = 'dark' | 'light'
+/** @deprecated Use ThemeMode — kept for existing imports. */
+export type Theme = ThemeMode
 
-const STORAGE_KEY = 'elv-alc-theme'
+const MODE_KEY = 'elv-alc-theme'
+const PACK_KEY = 'elv-alc-theme-pack'
 
 type ThemeCtx = {
-  theme: Theme
-  setTheme: (t: Theme) => void
+  /** Light / dark within the selected pack. */
+  theme: ThemeMode
+  setTheme: (t: ThemeMode) => void
   toggle: () => void
+  /** Named palette pack (e.g. ELV). */
+  themePack: ThemePackId
+  setThemePack: (id: ThemePackId) => void
+  packs: typeof THEME_PACKS
 }
 
 const Ctx = createContext<ThemeCtx | null>(null)
 
-function detectOsTheme(): Theme {
+function detectOsTheme(): ThemeMode {
   try {
     if (typeof window !== 'undefined' && window.matchMedia) {
       if (window.matchMedia('(prefers-color-scheme: dark)').matches) return 'dark'
@@ -23,9 +37,9 @@ function detectOsTheme(): Theme {
   return 'light'
 }
 
-function readStored(): Theme {
+function readStoredMode(): ThemeMode {
   try {
-    const v = localStorage.getItem(STORAGE_KEY)
+    const v = localStorage.getItem(MODE_KEY)
     if (v === 'light' || v === 'dark') return v
   } catch {
     /* ignore */
@@ -33,33 +47,51 @@ function readStored(): Theme {
   return detectOsTheme()
 }
 
-function applyTheme(theme: Theme) {
-  document.documentElement.dataset.theme = theme
+function readStoredPack(): ThemePackId {
+  try {
+    const v = localStorage.getItem(PACK_KEY)
+    if (isThemePackId(v)) return v
+  } catch {
+    /* ignore */
+  }
+  return DEFAULT_THEME_PACK
+}
+
+function applyAppearance(pack: ThemePackId, mode: ThemeMode) {
+  const root = document.documentElement
+  root.dataset.themePack = pack
+  root.dataset.theme = mode
 }
 
 export function ThemeProvider({ children }: { children: ReactNode }) {
-  const [theme, setThemeState] = useState<Theme>(() => {
-    const initial = readStored()
-    applyTheme(initial)
-    return initial
+  const [theme, setThemeState] = useState<ThemeMode>(() => {
+    const mode = readStoredMode()
+    const pack = readStoredPack()
+    applyAppearance(pack, mode)
+    return mode
   })
+  const [themePack, setThemePackState] = useState<ThemePackId>(() => readStoredPack())
 
   useEffect(() => {
-    applyTheme(theme)
+    applyAppearance(themePack, theme)
     try {
-      localStorage.setItem(STORAGE_KEY, theme)
+      localStorage.setItem(MODE_KEY, theme)
+      localStorage.setItem(PACK_KEY, themePack)
     } catch {
       /* ignore */
     }
-  }, [theme])
+  }, [theme, themePack])
 
   const value = useMemo(
     () => ({
       theme,
       setTheme: setThemeState,
       toggle: () => setThemeState((t) => (t === 'dark' ? 'light' : 'dark')),
+      themePack,
+      setThemePack: setThemePackState,
+      packs: THEME_PACKS,
     }),
-    [theme],
+    [theme, themePack],
   )
 
   return <Ctx.Provider value={value}>{children}</Ctx.Provider>

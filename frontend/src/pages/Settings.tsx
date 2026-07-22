@@ -3,6 +3,9 @@ import { api } from '../api'
 import { useCapabilities } from '../capabilities'
 import { useLive } from '../live'
 import { useLocale } from '../locale'
+import { useTheme } from '../theme'
+import type { ThemeMode } from '../theme'
+import type { ThemePackId } from '../themePacks'
 import type { MessageKey } from '../i18n'
 
 type DeviceSetup = {
@@ -53,6 +56,7 @@ function normalizeIllumWire(wire: number): number {
 
 export function Settings() {
   const { t } = useLocale()
+  const { theme, setTheme, themePack, setThemePack, packs } = useTheme()
   const { devices, deviceModel, capabilities, refresh: refreshCaps } = useCapabilities()
   const { refresh: refreshLive } = useLive()
   const [model, setModel] = useState(deviceModel)
@@ -302,6 +306,37 @@ export function Settings() {
       </div>
       {msg && <div className="toast ok">{msg}</div>}
       {err && <div className="toast error">{err}</div>}
+
+      <div className="panel" style={{ marginTop: '1.5rem' }}>
+        <h2>{t('set.appearance')}</h2>
+        <p className="lead" style={{ marginTop: 0 }}>
+          {t('set.appearanceLead')}
+        </p>
+        <div className="form-grid">
+          <label className="field">
+            {t('set.themePack')}
+            <select
+              value={themePack}
+              onChange={(e) => setThemePack(e.target.value as ThemePackId)}
+            >
+              {packs.map((p) => (
+                <option key={p.id} value={p.id}>
+                  {p.label}
+                </option>
+              ))}
+            </select>
+            <span className="field-hint">{t('set.themePackHint')}</span>
+          </label>
+          <label className="field">
+            {t('set.themeMode')}
+            <select value={theme} onChange={(e) => setTheme(e.target.value as ThemeMode)}>
+              <option value="light">{t('set.themeModeLight')}</option>
+              <option value="dark">{t('set.themeModeDark')}</option>
+            </select>
+            <span className="field-hint">{t('set.themeModeHint')}</span>
+          </label>
+        </div>
+      </div>
 
       {showDeviceDisplay && (
         <>

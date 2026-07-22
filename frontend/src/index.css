@@ -1,6 +1,7 @@
-/* AdminLTE inspired palette */
+/* Theme pack “ELV” — AdminLTE-inspired palette (light + dark via data-theme). */
 
 :root,
+[data-theme-pack="elv"][data-theme="dark"],
 [data-theme="dark"] {
   --bg0: #353c42;
   --bg1: #272c30;
@@ -48,19 +49,25 @@
   --toast-ok-text: #7ddea8;
   --modal-backdrop: rgba(0, 0, 0, 0.55);
   --live-lost-backdrop: rgba(72, 80, 88, 0.62);
-  --switch-track: #3e464c;
-  --switch-knob: #bec5cb;
+  --switch-track: rgba(0, 0, 0, 0.28);
+  --switch-knob: #ffffff;
+  --switch-fg: #ffffff;
   --header-bg: #2a7ab0;
   --header-brand-bg: #1f628f;
   --header-border: #2a7ab0;
+  --brand-fg: #ffffff;
   --topbar-bg: var(--header-bg);
   --topbar-fg: #ffffff;
   --topbar-border: var(--header-bg);
   --radius: 3px;
   --header-height: 3.25rem;
+  --channel-edge: var(--accent);
+  --channel-edge-active: var(--danger);
+  --on-danger-text: #ffffff;
   color-scheme: dark;
 }
 
+[data-theme-pack="elv"][data-theme="light"],
 [data-theme="light"] {
   --bg0: #ecf0f5;
   --bg1: #ffffff;
@@ -103,16 +110,151 @@
   --toast-ok-text: #00733e;
   --modal-backdrop: rgba(0, 0, 0, 0.4);
   --live-lost-backdrop: rgba(110, 118, 126, 0.58);
-  --switch-track: rgba(255, 255, 255, 0.35);
+  --switch-track: rgba(0, 0, 0, 0.28);
   --switch-knob: #ffffff;
+  --switch-fg: #ffffff;
   --header-bg: #2a7ab0;
   --header-brand-bg: #1f628f;
   --header-border: #2a7ab0;
+  --brand-fg: #ffffff;
   --topbar-bg: var(--header-bg);
   --topbar-fg: #ffffff;
   --topbar-border: var(--header-bg);
   --radius: 3px;
   --header-height: 3.25rem;
+  --channel-edge: var(--accent);
+  --channel-edge-active: var(--danger);
+  --on-danger-text: #ffffff;
+  color-scheme: light;
+}
+
+/* Theme pack “SCCH” — lime accent #00f300; brand block darker green (≈ ELV blue→dark-blue step). */
+[data-theme-pack="scch"][data-theme="dark"] {
+  --bg0: #353c42;
+  --bg1: #272c30;
+  --bg2: #3e464c;
+  --line: #3e464c;
+  --text: #bec5cb;
+  --muted: #8e989d;
+  --accent: #00f300;
+  --accent-dim: #00c300;
+  --warn: #ec6a0c;
+  --danger: #dd4b39;
+  --danger-solid: #b83428;
+  --danger-solid-dim: #9a2b21;
+  --ok: #00a65a;
+  --font: "Source Sans Pro", "Helvetica Neue", Helvetica, Arial, sans-serif;
+  --mono: "IBM Plex Mono", ui-monospace, monospace;
+  --sidebar-bg: #272c30;
+  --sidebar-line: #1e2225;
+  --channel-bg: #272c30;
+  --panel-bg: #272c30;
+  --metric-bg: #32393e;
+  --chart-bg: #2a2f34;
+  --chart-u: #3c8dbc;
+  --chart-i: #ec6a0c;
+  --chart-c: #00a65a;
+  --input-bg: #353c42;
+  --nav-link: #bec5cb;
+  --nav-hover-bg: #22272a;
+  --nav-active-bg: #22272a;
+  --nav-active-color: #ffffff;
+  --primary-text: #0a0a0a;
+  --btn-bg: #3e464c;
+  --btn-border: #353c42;
+  --danger-btn-bg: rgba(221, 75, 57, 0.18);
+  --danger-btn-border: rgba(221, 75, 57, 0.5);
+  --danger-btn-text: #f5b4ac;
+  --toast-warn-bg: rgba(236, 106, 12, 0.12);
+  --toast-warn-border: rgba(236, 106, 12, 0.4);
+  --toast-warn-text: #f0a05a;
+  --toast-err-bg: rgba(221, 75, 57, 0.14);
+  --toast-err-border: rgba(221, 75, 57, 0.45);
+  --toast-err-text: #f5b4ac;
+  --toast-ok-bg: rgba(0, 166, 90, 0.14);
+  --toast-ok-border: rgba(0, 166, 90, 0.4);
+  --toast-ok-text: #7ddea8;
+  --modal-backdrop: rgba(0, 0, 0, 0.55);
+  --live-lost-backdrop: rgba(72, 80, 88, 0.62);
+  --switch-track: rgba(0, 0, 0, 0.32);
+  --switch-knob: #ffffff;
+  --switch-fg: #ffffff;
+  --header-bg: #00f300;
+  --header-brand-bg: #00c300;
+  --header-border: #00f300;
+  --brand-fg: #0a0a0a;
+  --topbar-bg: var(--header-bg);
+  --topbar-fg: #0a0a0a;
+  --topbar-border: var(--header-bg);
+  --radius: 3px;
+  --header-height: 3.25rem;
+  /* Chart cards: darker brand green (header left), not bright lime accent. */
+  --channel-edge: var(--header-brand-bg);
+  --channel-edge-active: #dd4b39;
+  --on-danger-text: #ffffff;
+  color-scheme: dark;
+}
+
+[data-theme-pack="scch"][data-theme="light"] {
+  --bg0: #ecf0f5;
+  --bg1: #ffffff;
+  --bg2: #f4f4f4;
+  --line: #d2d6de;
+  --text: #333333;
+  --muted: #4b646f;
+  --accent: #00f300;
+  --accent-dim: #00c300;
+  --warn: #ec6a0c;
+  --danger: #dd4b39;
+  --danger-solid: #b83428;
+  --danger-solid-dim: #9a2b21;
+  --ok: #00a65a;
+  --sidebar-bg: #222d32;
+  --sidebar-line: #1a2226;
+  --channel-bg: #ffffff;
+  --panel-bg: #ffffff;
+  --metric-bg: #f4f6f9;
+  --chart-bg: #f4f6f9;
+  --chart-u: #3c8dbc;
+  --chart-i: #ec6a0c;
+  --chart-c: #00a65a;
+  --input-bg: #ffffff;
+  --nav-link: #b8c7ce;
+  --nav-hover-bg: #1e282c;
+  --nav-active-bg: #1e282c;
+  --nav-active-color: #ffffff;
+  --primary-text: #0a0a0a;
+  --btn-bg: #f4f4f4;
+  --btn-border: #d2d6de;
+  --danger-btn-bg: rgba(221, 75, 57, 0.1);
+  --danger-btn-border: rgba(221, 75, 57, 0.4);
+  --danger-btn-text: #dd4b39;
+  --toast-warn-bg: rgba(236, 106, 12, 0.1);
+  --toast-warn-border: rgba(236, 106, 12, 0.35);
+  --toast-warn-text: #b35009;
+  --toast-err-bg: rgba(221, 75, 57, 0.1);
+  --toast-err-border: rgba(221, 75, 57, 0.35);
+  --toast-err-text: #b53a2a;
+  --toast-ok-bg: rgba(0, 166, 90, 0.1);
+  --toast-ok-border: rgba(0, 166, 90, 0.35);
+  --toast-ok-text: #00733e;
+  --modal-backdrop: rgba(0, 0, 0, 0.4);
+  --live-lost-backdrop: rgba(110, 118, 126, 0.58);
+  --switch-track: rgba(0, 0, 0, 0.32);
+  --switch-knob: #ffffff;
+  --switch-fg: #ffffff;
+  --header-bg: #00f300;
+  --header-brand-bg: #00c300;
+  --header-border: #00f300;
+  --brand-fg: #0a0a0a;
+  --topbar-bg: var(--header-bg);
+  --topbar-fg: #0a0a0a;
+  --topbar-border: var(--header-bg);
+  --radius: 3px;
+  --header-height: 3.25rem;
+  --channel-edge: var(--header-brand-bg);
+  --channel-edge-active: #dd4b39;
+  --on-danger-text: #ffffff;
   color-scheme: light;
 }
 
@@ -168,7 +310,7 @@ a:hover { text-decoration: underline; }
   background: var(--header-brand-bg);
   border: none;
   border-bottom: 1px solid var(--header-brand-bg);
-  color: #ffffff;
+  color: var(--brand-fg, #ffffff);
   z-index: 2;
 }
 .brand-logo {
@@ -237,7 +379,7 @@ a:hover { text-decoration: underline; }
   justify-content: center;
   width: 14px;
   height: 14px;
-  color: var(--topbar-fg);
+  color: var(--switch-fg, #ffffff);
   opacity: 0.55;
   pointer-events: none;
   z-index: 1;
@@ -251,7 +393,7 @@ a:hover { text-decoration: underline; }
 .theme-switch-moon { right: 6px; }
 .theme-switch[data-theme="light"] .theme-switch-sun,
 .theme-switch[data-theme="dark"] .theme-switch-moon {
-  opacity: 0.95;
+  opacity: 1;
 }
 .lang-switch-label {
   position: absolute;
@@ -260,7 +402,7 @@ a:hover { text-decoration: underline; }
   font-size: 0.65rem;
   font-weight: 700;
   letter-spacing: 0.02em;
-  color: var(--topbar-fg);
+  color: var(--switch-fg, #ffffff);
   opacity: 0.55;
   pointer-events: none;
   z-index: 1;
@@ -270,7 +412,7 @@ a:hover { text-decoration: underline; }
 .lang-switch-en { right: 7px; }
 .lang-switch[data-locale="de"] .lang-switch-de,
 .lang-switch[data-locale="en"] .lang-switch-en {
-  opacity: 0.95;
+  opacity: 1;
 }
 .theme-switch-knob,
 .lang-switch-knob {
@@ -283,21 +425,12 @@ a:hover { text-decoration: underline; }
   border-radius: 50%;
   background: var(--switch-knob);
   transition: transform 0.2s ease;
-  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.25);
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.35);
   z-index: 2;
 }
 .theme-switch[data-theme="dark"] .theme-switch-knob,
 .lang-switch[data-locale="en"] .lang-switch-knob {
   transform: translateX(26px);
-}
-[data-theme="light"] .theme-switch .theme-switch-track,
-[data-theme="light"] .lang-switch .lang-switch-track {
-  background: rgba(255, 255, 255, 0.4);
-  border-color: rgba(255, 255, 255, 0.35);
-}
-[data-theme="light"] .theme-switch .theme-switch-icon,
-[data-theme="light"] .lang-switch .lang-switch-label {
-  color: #fff;
 }
 
 .sidebar {
@@ -709,7 +842,7 @@ h1 {
 
 .channel {
   border: 1px solid var(--line);
-  border-top: 3px solid var(--accent);
+  border-top: 3px solid var(--channel-edge, var(--accent));
   border-radius: var(--radius);
   background: var(--channel-bg);
   padding: 1rem;
@@ -728,13 +861,13 @@ h1 {
   border-left-color: var(--sidebar-bg);
   border-right-color: var(--sidebar-bg);
   border-bottom-color: var(--sidebar-bg);
-  border-top-color: var(--accent);
+  border-top-color: var(--channel-edge, var(--accent));
 }
 .channel.channel-running {
-  border-top-color: var(--danger);
+  border-top-color: var(--channel-edge-active, var(--danger));
 }
 .channel.channel-running:hover {
-  border-top-color: var(--danger);
+  border-top-color: var(--channel-edge-active, var(--danger));
 }
 .channel header {
   display: flex;
@@ -864,13 +997,13 @@ button.primary:hover, .btn.primary:hover {
 button.primary-danger, .btn.primary-danger {
   background: var(--danger-solid);
   border-color: var(--danger-solid-dim);
-  color: var(--primary-text);
+  color: var(--on-danger-text, #ffffff);
   font-weight: 600;
 }
 button.primary-danger:hover, .btn.primary-danger:hover {
   background: var(--danger-solid-dim);
   border-color: var(--danger-solid-dim);
-  color: var(--primary-text);
+  color: var(--on-danger-text, #ffffff);
 }
 button.danger {
   background: var(--danger-btn-bg);

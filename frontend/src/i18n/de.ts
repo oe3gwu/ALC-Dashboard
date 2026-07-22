@@ -263,6 +263,14 @@ export const de = {
   'set.setupApplyOk': 'Display-Einstellungen übernommen',
   'set.setupIllumMismatch':
     'Gerät hat Beleuchtung nicht übernommen (erwartet {want}, Echo {got}). Bitte erneut versuchen oder am Gerät prüfen.',
+  'set.appearance': 'Erscheinungsbild',
+  'set.appearanceLead': 'Farbpalette und Hell-/Dunkelmodus für die Oberfläche.',
+  'set.themePack': 'Theme',
+  'set.themePackHint': 'Farbpalette der Oberfläche (ELV oder SCCH).',
+  'set.themeMode': 'Modus',
+  'set.themeModeLight': 'Hell',
+  'set.themeModeDark': 'Dunkel',
+  'set.themeModeHint': 'Auch über den Schalter in der Kopfzeile umschaltbar.',
 
   'help.title': 'Bedienungsanleitung',
   'help.lead':

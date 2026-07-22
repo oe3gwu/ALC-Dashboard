@@ -265,6 +265,14 @@ export const en: Record<MessageKey, string> = {
   'set.setupApplyOk': 'Display settings applied',
   'set.setupIllumMismatch':
     'Device did not accept backlight mode (expected {want}, echo {got}). Retry or check on the device.',
+  'set.appearance': 'Appearance',
+  'set.appearanceLead': 'Color palette and light/dark mode for the UI.',
+  'set.themePack': 'Theme',
+  'set.themePackHint': 'UI color palette (ELV or SCCH).',
+  'set.themeMode': 'Mode',
+  'set.themeModeLight': 'Light',
+  'set.themeModeDark': 'Dark',
+  'set.themeModeHint': 'Also switchable via the header control.',
 
   'help.title': 'User guide',
   'help.lead':
