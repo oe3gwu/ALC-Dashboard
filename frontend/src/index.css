@@ -1296,3 +1296,76 @@ ol.steps li { margin: 0.4rem 0; }
   color: var(--muted);
   font-size: 0.92rem;
 }
+
+.user-guide-sections {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+}
+.user-guide-section {
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: var(--input-bg);
+}
+.user-guide-section summary {
+  cursor: pointer;
+  list-style: none;
+  padding: 0.65rem 0.85rem;
+  font-weight: 600;
+  font-size: 0.95rem;
+  color: var(--text);
+  user-select: none;
+}
+.user-guide-section summary::-webkit-details-marker {
+  display: none;
+}
+.user-guide-section summary::before {
+  content: '▸';
+  display: inline-block;
+  width: 1rem;
+  color: var(--muted);
+  transition: transform 0.15s ease;
+}
+.user-guide-section[open] summary::before {
+  transform: rotate(90deg);
+}
+.user-guide-body {
+  padding: 0 0.85rem 0.85rem 1.85rem;
+  color: var(--muted);
+  font-size: 0.9rem;
+  line-height: 1.5;
+}
+.user-guide-body p {
+  margin: 0 0 0.65rem;
+}
+.user-guide-body p:last-child,
+.user-guide-body ul:last-child,
+.user-guide-body ol:last-child {
+  margin-bottom: 0;
+}
+.user-guide-body ul,
+.user-guide-body ol {
+  margin: 0 0 0.65rem;
+  padding-left: 1.15rem;
+}
+.user-guide-body li {
+  margin: 0.3rem 0;
+}
+.user-guide-warn {
+  margin: 0 0 0.75rem;
+  padding: 0.65rem 0.75rem;
+  border-left: 3px solid #b45309;
+  background: color-mix(in srgb, #b45309 12%, var(--input-bg));
+  color: var(--text);
+  font-size: 0.9rem;
+  line-height: 1.45;
+  border-radius: 0 var(--radius) var(--radius) 0;
+}
+.user-guide-links {
+  margin: 0 0 0.65rem;
+  padding-left: 1.15rem;
+}
+.user-guide-links a {
+  color: var(--accent, #0d6efd);
+  word-break: break-word;
+}

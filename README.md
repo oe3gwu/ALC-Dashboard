@@ -35,6 +35,22 @@ If ELV released **ChargeProfessional 2.x** for your charger, install the matchin
 
 More detail: [docs/devices.md](docs/devices.md) · [docs/protocol.md](docs/protocol.md).
 
+### Device user manuals (Bedienungsanleitungen)
+
+Official-style user manuals via Manualslib (not protocol articles):
+
+| Device | Manual |
+|--------|--------|
+| **ALC 1800 PC** | [Manualslib](https://www.manualslib.de/manual/238171/Elv-Alc1800Pc.html) |
+| **ALC 3000 PC** | [Manualslib](https://www.manualslib.de/manual/182482/Elv-Akku-Lade-Center-Alc-3000-Pc.html) |
+| **ALC 5000** | [Manualslib](https://www.manualslib.de/manual/86513/Elv-Alc-5000.html) |
+| **ALC 7000 Expert** | [Manualslib](https://www.manualslib.de/manual/20902/Elv-Alc-7000-Expert.html) |
+| **ALC 8000** | [Manualslib](https://www.manualslib.de/manual/90908/Elv-Alc-8000.html) |
+| **ALC 8500 Expert** | [Manualslib](https://www.manualslib.de/manual/321977/Elv-Alc-8500-Expert.html) |
+| **ALC 9000** | [ELV PDF](https://media.elv.com/file/2003_06_15_alc9000.pdf) |
+
+Protocol / wire sources remain in the table above and in [docs/protocol.md](docs/protocol.md).
+
 ---
 
 ## Features
@@ -55,7 +71,8 @@ More detail: [docs/devices.md](docs/devices.md) · [docs/protocol.md](docs/proto
 **Not available over USB:** Internal resistance (Ri) measurement — device only, with four-wire cable.
 
 Further docs: [devices](docs/devices.md) · [feature matrix](docs/feature-matrix.md) · [protocol](docs/protocol.md)  
-Primary sources: [8500-2 manual](https://media.elv.com/file/59066_69326_alc8500e_2_um.pdf) · [8000/8500 Expert ELVjournal](https://media.elv.com/file/59066_alc8000_alc8500_expert_teil7.pdf) · [3000 PC ChargeEasy Teil 2](https://media.elv.com/file/76962_alc3000pc_teil2.pdf)
+User manuals: see [Device user manuals](#device-user-manuals-bedienungsanleitungen) above.  
+Protocol PDFs: [8500-2 chapter 18](https://media.elv.com/file/59066_69326_alc8500e_2_um.pdf) · [8000/8500 Expert ELVjournal](https://media.elv.com/file/59066_alc8000_alc8500_expert_teil7.pdf) · [3000 PC ChargeEasy Teil 2](https://media.elv.com/file/76962_alc3000pc_teil2.pdf)
 
 ---
 

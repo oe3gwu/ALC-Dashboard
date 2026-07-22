@@ -7,6 +7,7 @@ export const de = {
   'nav.device': 'Geräteinfo',
   'nav.firmware': 'Firmware',
   'nav.settings': 'Einstellungen',
+  'nav.help': 'Bedienungsanleitung',
 
   'theme.toLight': 'Zu Hellmodus wechseln',
   'theme.toDark': 'Zu Dunkelmodus wechseln',
@@ -262,6 +263,10 @@ export const de = {
   'set.setupApplyOk': 'Display-Einstellungen übernommen',
   'set.setupIllumMismatch':
     'Gerät hat Beleuchtung nicht übernommen (erwartet {want}, Echo {got}). Bitte erneut versuchen oder am Gerät prüfen.',
+
+  'help.title': 'Bedienungsanleitung',
+  'help.lead':
+    'Kurzanleitung zu den Funktionen dieses Dashboards. Abschnitte aufklappen für Details. Die Sprache folgt der Umschaltung oben rechts.',
 
   'nav.unavailable': 'Für dieses Gerät nicht verfügbar',
 } as const

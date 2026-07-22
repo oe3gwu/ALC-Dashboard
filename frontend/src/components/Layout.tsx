@@ -15,6 +15,7 @@ const links: { to: string; key: MessageKey; feature?: 'battery_db' | 'chemistry_
   { to: '/device', key: 'nav.device' },
   { to: '/firmware', key: 'nav.firmware', feature: 'firmware_guided' },
   { to: '/settings', key: 'nav.settings' },
+  { to: '/help', key: 'nav.help' },
 ]
 
 function SunIcon() {

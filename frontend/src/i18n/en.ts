@@ -9,6 +9,7 @@ export const en: Record<MessageKey, string> = {
   'nav.device': 'Device info',
   'nav.firmware': 'Firmware',
   'nav.settings': 'Settings',
+  'nav.help': 'User guide',
 
   'theme.toLight': 'Switch to light mode',
   'theme.toDark': 'Switch to dark mode',
@@ -264,6 +265,10 @@ export const en: Record<MessageKey, string> = {
   'set.setupApplyOk': 'Display settings applied',
   'set.setupIllumMismatch':
     'Device did not accept backlight mode (expected {want}, echo {got}). Retry or check on the device.',
+
+  'help.title': 'User guide',
+  'help.lead':
+    'Short guide to this dashboard’s features. Expand a section for details. Language follows the switch at the top right.',
 
   'nav.unavailable': 'Not available for this device',
 }

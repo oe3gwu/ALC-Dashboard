@@ -8,6 +8,7 @@ import { Dashboard } from './pages/Dashboard'
 import { DataLogger } from './pages/DataLogger'
 import { DeviceInfo } from './pages/DeviceInfo'
 import { FirmwareUpdate } from './pages/FirmwareUpdate'
+import { Help } from './pages/Help'
 import { Settings } from './pages/Settings'
 import { StartProcess } from './pages/StartProcess'
 import { CapabilitiesProvider } from './capabilities'
@@ -33,6 +34,7 @@ export default function App() {
                   <Route path="device" element={<DeviceInfo />} />
                   <Route path="firmware" element={<FirmwareUpdate />} />
                   <Route path="settings" element={<Settings />} />
+                  <Route path="help" element={<Help />} />
                   <Route path="*" element={<Navigate to="/" replace />} />
                 </Route>
               </Routes>
