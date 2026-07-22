@@ -17,7 +17,7 @@ export const de = {
   'sidebar.simulator': 'Simulator',
   'sidebar.modeConnected': 'Verbunden',
   'sidebar.modeSim': 'Simulator (Zeit: ×10)',
-  'sidebar.modeError': 'Error',
+  'sidebar.modeError': 'Fehler',
   'sidebar.offline': 'Offline',
   'live.connectionLost': 'Verbindung getrennt',
   'live.connectionLostHint': 'Keine Verbindung zum Dashboard-Server. Versuche erneut…',
@@ -76,7 +76,8 @@ export const de = {
 
   'start.title': 'Vorgang starten',
   'start.sectionPrimary': 'Kanal & Preset',
-  'start.sectionParams': 'Parameter',
+  'start.sectionBattery': 'Akku',
+  'start.sectionCurrents': 'Ströme & Pause',
   'start.channel': 'Kanal',
   'start.preset': 'Akku-Preset',
   'start.presetManual': 'Manuell',
@@ -87,6 +88,7 @@ export const de = {
   'start.program': 'Programm',
   'start.batteryType': 'Akkutyp',
   'start.cells': 'Zellen',
+  'start.maxVoltage': 'Max. Spannung',
   'start.capacity': 'Kapazität (mAh)',
   'start.chargeCurrent': 'Ladestrom (mA)',
   'start.dischargeCurrent': 'Entladestrom (mA)',
@@ -107,6 +109,8 @@ export const de = {
 
   'detail.allChannels': 'Alle Kanäle',
   'detail.startProcess': 'Vorgang starten',
+  'detail.resetZoom': 'Live-Ansicht',
+  'detail.resetZoomTitle': 'Zoom zurücksetzen und Live-Ansicht fortsetzen',
 
   'bat.title': 'Akku-Datenbank',
   'bat.lead':

@@ -203,8 +203,14 @@ class SerialManager:
     def auto_detect(self) -> str | None:
         candidates = sorted(self.list_ports(), key=self._score_port, reverse=True)
         probed: list[str] = []
+        rs232 = self.profile.protocol == "alc7000_rs232"
         for info in candidates:
+            # Platform ttyS* are slow/useless for USB ALC profiles and block the server
+            if (not rs232) and "/ttyS" in info.device.replace("\\", "/"):
+                continue
             if self._score_port(info) <= 0 and not info.device.startswith(("/dev/ttyUSB", "/dev/ttyACM", "/dev/ttyS")):
+                continue
+            if (not rs232) and info.device.startswith("/dev/ttyS"):
                 continue
             probed.append(info.device)
             try:
@@ -443,6 +449,26 @@ class SerialManager:
             self.connected_port = None
             self.simulator = False
             self._io_activity.reset()
+
+    def mark_failed(self, exc: BaseException | str | None = None) -> None:
+        """Drop a dead link, keep last_error, and allow 5s auto-reconnect.
+
+        Unlike API disconnect, link loss re-enables startup_autoconnect so the
+        boot retry loop can start again when the cable is plugged back in.
+        """
+        if isinstance(exc, BaseException):
+            msg = str(exc).strip() or type(exc).__name__
+        elif isinstance(exc, str) and exc.strip():
+            msg = exc.strip()
+        else:
+            msg = "USB-Verbindung unterbrochen"
+        low = msg.lower()
+        if "usb" in low or "serial" in low or "verbindung" in low:
+            self.last_error = msg
+        else:
+            self.last_error = f"USB-Verbindung unterbrochen ({msg})"
+        self.startup_autoconnect = True
+        self.disconnect()
 
     @property
     def client(self) -> ClientType:

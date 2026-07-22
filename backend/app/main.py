@@ -70,11 +70,96 @@ def valid_channel(channel: int) -> None:
 
 AUTO_CONNECT_RETRY_S = 5.0
 
+_main_loop: asyncio.AbstractEventLoop | None = None
+_autoconnect_task: asyncio.Task[None] | None = None
+
+
+class DeviceLostError(Exception):
+    """Link to the ALC died; mapped to HTTP 503 with a clear detail message."""
+
+    def __init__(self, message: str) -> None:
+        self.message = message
+        super().__init__(message)
+
+
+def is_link_error(exc: BaseException) -> bool:
+    """True for USB/serial transport failures (not WebSocket peer disconnect)."""
+    import serial
+
+    if isinstance(exc, (serial.SerialException, TimeoutError)):
+        return True
+    if isinstance(exc, OSError):
+        errno = getattr(exc, "errno", None)
+        if errno in {5, 6, 9, 19}:  # EIO, ENXIO, EBADF, ENODEV
+            return True
+        msg = str(exc).lower()
+        if any(s in msg for s in ("device", "port is", "usb", "serial", "i/o error", "not open")):
+            return True
+    return False
+
+
+async def _autoconnect_retry_loop() -> None:
+    """Retry every 5s until connected or user disables via Disconnect.
+
+    connect()/auto_detect runs in a worker thread so port probing cannot block
+    the asyncio event loop (otherwise the UI sees NetworkError / hung fetches).
+    """
+    while manager.startup_autoconnect and not manager.is_connected:
+        await asyncio.sleep(AUTO_CONNECT_RETRY_S)
+        if not manager.startup_autoconnect or manager.is_connected:
+            break
+        try:
+            await asyncio.to_thread(
+                manager.connect,
+                cfg.serial_port or None,
+                cfg.simulator,
+            )
+            log.info("Auto-connect retry OK: %s", manager.status())
+            break
+        except Exception as exc:
+            log.info("Auto-connect retry: %s", exc)
+
+
+def ensure_autoconnect_task() -> None:
+    """Start (or keep) the 5s reconnect loop if autoconnect is allowed and offline."""
+    global _autoconnect_task
+    if not manager.startup_autoconnect or manager.is_connected:
+        return
+    loop = _main_loop
+    if loop is None or not loop.is_running():
+        return
+
+    def _start() -> None:
+        global _autoconnect_task
+        if not manager.startup_autoconnect or manager.is_connected:
+            return
+        if _autoconnect_task is not None and not _autoconnect_task.done():
+            return
+        _autoconnect_task = loop.create_task(_autoconnect_retry_loop())
+
+    try:
+        running = asyncio.get_running_loop()
+    except RuntimeError:
+        running = None
+    if running is loop:
+        _start()
+    else:
+        loop.call_soon_threadsafe(_start)
+
+
+def note_device_lost(exc: BaseException) -> DeviceLostError:
+    """Mark link failed, schedule reconnect, return error for HTTP/WS surfaces."""
+    manager.mark_failed(exc)
+    ensure_autoconnect_task()
+    return DeviceLostError(manager.last_error or "Geräteverbindung verloren")
+
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
+    global _main_loop, _autoconnect_task
     cfg.data_path.mkdir(parents=True, exist_ok=True)
     (cfg.data_path / "logger").mkdir(parents=True, exist_ok=True)
+    _main_loop = asyncio.get_running_loop()
     # Hardware: leerer serial_port → auto_detect; Simulator: immer verbinden
     try:
         manager.connect(port=cfg.serial_port or None, use_simulator=cfg.simulator)
@@ -82,32 +167,19 @@ async def lifespan(app: FastAPI):
     except Exception as exc:
         log.warning("Auto-connect fehlgeschlagen: %s", exc)
 
-    retry_task: asyncio.Task[None] | None = None
-
-    async def autoconnect_retry_loop() -> None:
-        """Retry every 5s until connected or user disables via Disconnect."""
-        while manager.startup_autoconnect and not manager.is_connected:
-            await asyncio.sleep(AUTO_CONNECT_RETRY_S)
-            if not manager.startup_autoconnect or manager.is_connected:
-                break
-            try:
-                manager.connect(port=cfg.serial_port or None, use_simulator=cfg.simulator)
-                log.info("Auto-connect retry OK: %s", manager.status())
-                break
-            except Exception as exc:
-                log.info("Auto-connect retry: %s", exc)
-
-    if manager.startup_autoconnect and not manager.is_connected:
-        retry_task = asyncio.create_task(autoconnect_retry_loop())
+    ensure_autoconnect_task()
 
     yield
 
-    if retry_task is not None:
-        retry_task.cancel()
+    task = _autoconnect_task
+    _autoconnect_task = None
+    if task is not None:
+        task.cancel()
         try:
-            await retry_task
+            await task
         except asyncio.CancelledError:
             pass
+    _main_loop = None
     manager.disconnect()
 
 
@@ -119,6 +191,35 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+
+@app.exception_handler(DeviceLostError)
+async def device_lost_handler(_request: Request, exc: DeviceLostError) -> Response:
+    from fastapi.responses import JSONResponse
+
+    return JSONResponse(status_code=503, content={"detail": exc.message})
+
+
+@app.exception_handler(TimeoutError)
+async def timeout_link_handler(_request: Request, exc: TimeoutError) -> Response:
+    from fastapi.responses import JSONResponse
+
+    err = note_device_lost(exc)
+    return JSONResponse(status_code=503, content={"detail": err.message})
+
+
+def _register_serial_exception_handler() -> None:
+    import serial
+
+    @app.exception_handler(serial.SerialException)
+    async def serial_link_handler(_request: Request, exc: serial.SerialException) -> Response:
+        from fastapi.responses import JSONResponse
+
+        err = note_device_lost(exc)
+        return JSONResponse(status_code=503, content={"detail": err.message})
+
+
+_register_serial_exception_handler()
 
 
 def require_client():
@@ -201,9 +302,10 @@ def connect(body: ConnectRequest) -> dict[str, Any]:
 
 @app.post("/api/connection/disconnect")
 def disconnect() -> dict[str, Any]:
-    # Stop boot-time auto-retry; intentional disconnect must stay disconnected
+    # Stop auto-retry; intentional disconnect must stay disconnected
     manager.startup_autoconnect = False
     manager.disconnect()
+    manager.last_error = None
     return manager.status()
 
 
@@ -294,6 +396,8 @@ def live() -> dict[str, Any]:
             temps = client.get_temperatures().to_dict()
             channels = [_channel_live_dict(client, i) for i in range(n)]
     except Exception as exc:
+        if is_link_error(exc):
+            raise note_device_lost(exc) from exc
         manager.last_error = str(exc)
         raise HTTPException(503, f"Live-Abfrage fehlgeschlagen: {exc}") from exc
     return {"channels": channels, "measurements": measurements, "temperatures": temps, "connection": manager.status()}
@@ -678,8 +782,13 @@ def device_info() -> dict[str, Any]:
     client = require_client()
     st = manager.status()
     profile = get_profile(st.get("device_model") or cfg.device_model)
-    with manager.with_client():
-        temps = client.get_temperatures().to_dict()
+    try:
+        with manager.with_client():
+            temps = client.get_temperatures().to_dict()
+    except Exception as exc:
+        if is_link_error(exc):
+            raise note_device_lost(exc) from exc
+        raise
     info: dict[str, Any] = {
         "connected": True,
         "port": manager.connected_port,
@@ -746,6 +855,8 @@ def read_logger(channel: int, save: bool = True) -> dict[str, Any]:
         with manager.with_client():
             data = client.read_logger(channel)
     except Exception as exc:
+        if is_link_error(exc):
+            raise note_device_lost(exc) from exc
         manager.last_error = str(exc)
         raise HTTPException(503, f"Logger-Lesen fehlgeschlagen: {exc}") from exc
     result: dict[str, Any] = {"logger": data.to_dict()}
@@ -801,8 +912,12 @@ async def read_logger_stream(channel: int, save: bool = True) -> StreamingRespon
                 result["archive"]["pdf"] = pdf_path.name
             emit(result)
         except Exception as exc:
-            manager.last_error = str(exc)
-            emit({"type": "error", "message": f"Logger-Lesen fehlgeschlagen: {exc}"})
+            if is_link_error(exc):
+                err = note_device_lost(exc)
+                emit({"type": "error", "message": err.message})
+            else:
+                manager.last_error = str(exc)
+                emit({"type": "error", "message": f"Logger-Lesen fehlgeschlagen: {exc}"})
 
     async def event_stream() -> AsyncIterator[str]:
         task = asyncio.create_task(asyncio.to_thread(worker))
@@ -900,10 +1015,14 @@ def firmware_guide() -> dict[str, Any]:
 
 
 def _ws_disconnected(exc: BaseException) -> bool:
-    """True when the peer is gone — stop the live loop (do not retry send)."""
+    """True when the WebSocket peer is gone — stop the live loop (do not retry send).
+
+    Do not treat serial/OSError link failures as peer disconnect; those are handled
+    in _live_payload_nonblocking via mark_failed + status push.
+    """
     if isinstance(exc, WebSocketDisconnect):
         return True
-    if isinstance(exc, (RuntimeError, ConnectionError, OSError, asyncio.CancelledError)):
+    if isinstance(exc, (ConnectionError, asyncio.CancelledError)):
         return True
     # Starlette / uvicorn may wrap transport errors
     name = type(exc).__name__
@@ -939,6 +1058,17 @@ def _live_payload_nonblocking() -> dict[str, Any] | None:
             "temperatures": temps,
             "connection": manager.status(),
         }
+    except Exception as exc:
+        if is_link_error(exc):
+            note_device_lost(exc)
+            return {
+                "type": "live",
+                "connection": manager.status(),
+                "channels": [],
+                "measurements": [],
+                "temperatures": {},
+            }
+        raise
     finally:
         manager.release()
 
@@ -954,7 +1084,17 @@ async def ws_live(ws: WebSocket) -> None:
             except Exception as exc:
                 if _ws_disconnected(exc):
                     return
-                payload = {"type": "error", "message": str(exc)}
+                if is_link_error(exc):
+                    note_device_lost(exc)
+                    payload = {
+                        "type": "live",
+                        "connection": manager.status(),
+                        "channels": [],
+                        "measurements": [],
+                        "temperatures": {},
+                    }
+                else:
+                    payload = {"type": "error", "message": str(exc)}
 
             if payload is not None:
                 try:

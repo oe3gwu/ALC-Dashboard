@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from 'react'
 import { useNavigate, useSearchParams } from 'react-router-dom'
 import { api, type ChannelParams } from '../api'
+import { formatMaxPackVoltage } from '../batteryVoltage'
 import { useCapabilities } from '../capabilities'
 import { useLive } from '../live'
 import { useLocale } from '../locale'
@@ -248,6 +249,10 @@ export function StartProcess() {
   )
   const fullPct = toPercent(form.full_factor)
   const fullOver = fullPct > 100
+  const maxVoltageLabel = useMemo(
+    () => formatMaxPackVoltage(form.battery_type, form.cells),
+    [form.battery_type, form.cells],
+  )
 
   const formatCorrectionValue = (key: string, value: unknown): string => {
     if (key === 'full_factor') {
@@ -398,7 +403,7 @@ export function StartProcess() {
         </section>
 
         <section className="start-section">
-          <h2 className="start-section-title">{t('start.sectionParams')}</h2>
+          <h2 className="start-section-title">{t('start.sectionBattery')}</h2>
           <div className="form-grid">
             <label className="field">
               {t('start.batteryType')}
@@ -422,6 +427,10 @@ export function StartProcess() {
               />
             </label>
             <label className="field">
+              {t('start.maxVoltage')}
+              <input type="text" readOnly tabIndex={-1} value={maxVoltageLabel} aria-readonly="true" />
+            </label>
+            <label className="field">
               {t('start.capacity')}
               <input
                 className={correctedKeys.has('capacity_mAh') ? 'corrected' : ''}
@@ -430,6 +439,12 @@ export function StartProcess() {
                 onChange={(e) => set('capacity_mAh', Number(e.target.value))}
               />
             </label>
+          </div>
+        </section>
+
+        <section className="start-section">
+          <h2 className="start-section-title">{t('start.sectionCurrents')}</h2>
+          <div className="form-grid">
             <label className="field">
               {t('start.chargeCurrent')}
               <input

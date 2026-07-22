@@ -78,7 +78,8 @@ export const en: Record<MessageKey, string> = {
 
   'start.title': 'Start process',
   'start.sectionPrimary': 'Channel & preset',
-  'start.sectionParams': 'Parameters',
+  'start.sectionBattery': 'Battery',
+  'start.sectionCurrents': 'Currents & pause',
   'start.channel': 'Channel',
   'start.preset': 'Battery preset',
   'start.presetManual': 'Manual',
@@ -89,6 +90,7 @@ export const en: Record<MessageKey, string> = {
   'start.program': 'Program',
   'start.batteryType': 'Battery type',
   'start.cells': 'Cells',
+  'start.maxVoltage': 'Max. voltage',
   'start.capacity': 'Capacity (mAh)',
   'start.chargeCurrent': 'Charge current (mA)',
   'start.dischargeCurrent': 'Discharge current (mA)',
@@ -109,6 +111,8 @@ export const en: Record<MessageKey, string> = {
 
   'detail.allChannels': 'All channels',
   'detail.startProcess': 'Start process',
+  'detail.resetZoom': 'Live View',
+  'detail.resetZoomTitle': 'Reset zoom and resume live view',
 
   'bat.title': 'Battery database',
   'bat.lead':

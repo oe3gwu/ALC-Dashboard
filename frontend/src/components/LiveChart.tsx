@@ -107,12 +107,21 @@ export function LiveChart({
   height = DEFAULT_HEIGHT,
   compact = false,
   seriesMode = 'ui',
+  allowZoom = false,
+  scaleReset = 0,
+  onZoomLockChange,
 }: {
   points: ChartPoint[]
   title?: string
   height?: number
   compact?: boolean
   seriesMode?: SeriesMode
+  /** Drag-zoom (detail charts only). Overview stays live-auto. */
+  allowZoom?: boolean
+  /** Increment to unlock zoom and resume auto scales (refresh button). */
+  scaleReset?: number
+  /** Fired when user zooms in/out of live auto-scale. */
+  onZoomLockChange?: (locked: boolean) => void
 }) {
   const { t, locale } = useLocale()
   const el = useRef<HTMLDivElement>(null)
@@ -120,7 +129,17 @@ export function LiveChart({
   const pointsRef = useRef(points)
   const ensurePlotRef = useRef<(width?: number) => void>(() => {})
   const retryRaf = useRef<number | null>(null)
+  /** Keep user zoom across live setData(); cleared via scaleReset. */
+  const zoomLockRef = useRef(false)
+  const onZoomLockChangeRef = useRef(onZoomLockChange)
+  onZoomLockChangeRef.current = onZoomLockChange
   pointsRef.current = points
+
+  const setZoomLock = (locked: boolean) => {
+    if (zoomLockRef.current === locked) return
+    zoomLockRef.current = locked
+    onZoomLockChangeRef.current?.(locked)
+  }
 
   useEffect(() => {
     const node = el.current
@@ -133,8 +152,25 @@ export function LiveChart({
 
     const syncData = (u: uPlot) => {
       const pts = pointsRef.current
-      u.setData(seriesMode === 'cap' ? toCapData(pts) : toUiData(pts))
+      // false = do not reset scales (preserves drag-zoom while live data arrives)
+      u.setData(seriesMode === 'cap' ? toCapData(pts) : toUiData(pts), !zoomLockRef.current)
     }
+
+    const zoomHooks: uPlot.Hooks.Arrays | undefined = allowZoom
+      ? {
+          setSelect: [
+            (u) => {
+              if (u.select.width > 0 || u.select.height > 0) {
+                setZoomLock(true)
+              }
+            },
+          ],
+        }
+      : undefined
+
+    const cursorOpts: uPlot.Cursor = allowZoom
+      ? { show: true, drag: { x: true, y: true, setScale: true } }
+      : { show: true, drag: { x: false, y: false, setScale: false } }
 
     const plotHeight = () => {
       if (compact) {
@@ -173,7 +209,8 @@ export function LiveChart({
               height: h,
               title: compact ? undefined : title,
               legend: { show: !compact },
-              cursor: { show: true },
+              cursor: cursorOpts,
+              hooks: zoomHooks,
               series: [
                 { label: labelT, value: (_u, v) => fmtTime(v) },
                 { label: labelC, stroke: COLOR_C, width: compact ? 1.5 : 2, value: (_u, v) => fmtC(v) },
@@ -203,7 +240,8 @@ export function LiveChart({
               height: h,
               title: compact ? undefined : title,
               legend: { show: !compact },
-              cursor: { show: true },
+              cursor: cursorOpts,
+              hooks: zoomHooks,
               series: [
                 { label: labelT, value: (_u, v) => fmtTime(v) },
                 { label: labelU, stroke: COLOR_U, width: compact ? 1.5 : 2, value: (_u, v) => fmtU(v) },
@@ -245,6 +283,8 @@ export function LiveChart({
               padding: compact ? [4, 4, 0, 0] : [8, 8, 0, 0],
             }
 
+      zoomLockRef.current = false
+      onZoomLockChangeRef.current?.(false)
       plot.current = new uPlot(opts, seriesMode === 'cap' ? [[], []] : [[], [], []], node)
       syncData(plot.current)
     }
@@ -256,6 +296,8 @@ export function LiveChart({
       plot.current.destroy()
       plot.current = null
     }
+    zoomLockRef.current = false
+    onZoomLockChangeRef.current?.(false)
 
     let lastFs = parseFloat(getComputedStyle(document.documentElement).fontSize) || 16
     const ro = new ResizeObserver((entries) => {
@@ -264,6 +306,8 @@ export function LiveChart({
       if (plot.current && Math.abs(fs - lastFs) > 0.2) {
         plot.current.destroy()
         plot.current = null
+        zoomLockRef.current = false
+        onZoomLockChangeRef.current?.(false)
         lastFs = fs
       }
       ensurePlot(width)
@@ -281,16 +325,31 @@ export function LiveChart({
       ensurePlotRef.current = () => {}
       plot.current?.destroy()
       plot.current = null
+      zoomLockRef.current = false
+      onZoomLockChangeRef.current?.(false)
     }
-  }, [title, height, compact, seriesMode, locale, t])
+  }, [title, height, compact, seriesMode, locale, t, allowZoom])
 
   useEffect(() => {
     if (!plot.current) {
       ensurePlotRef.current()
       return
     }
-    plot.current.setData(seriesMode === 'cap' ? toCapData(points) : toUiData(points))
+    plot.current.setData(
+      seriesMode === 'cap' ? toCapData(points) : toUiData(points),
+      !zoomLockRef.current,
+    )
   }, [points, seriesMode])
+
+  useEffect(() => {
+    if (scaleReset <= 0) return
+    setZoomLock(false)
+    if (!plot.current) return
+    plot.current.setData(
+      seriesMode === 'cap' ? toCapData(pointsRef.current) : toUiData(pointsRef.current),
+      true,
+    )
+  }, [scaleReset, seriesMode])
 
   return (
     <div

@@ -222,8 +222,8 @@ export function DataLogger() {
             </div>
           </div>
           <div className="detail-charts">
-            <LiveChart points={points} title={t('log.chartTitle')} height={180} seriesMode="ui" />
-            <LiveChart points={points} title={t('log.chartTitleCap')} height={180} seriesMode="cap" />
+            <LiveChart points={points} title={t('log.chartTitle')} height={180} seriesMode="ui" allowZoom />
+            <LiveChart points={points} title={t('log.chartTitleCap')} height={180} seriesMode="cap" allowZoom />
           </div>
         </div>
       )}

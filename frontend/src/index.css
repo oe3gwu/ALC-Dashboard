@@ -617,6 +617,13 @@ h1 {
   margin-bottom: 0.65rem;
   flex-shrink: 0;
 }
+.page-detail-actions .detail-chart-refresh {
+  margin-left: auto;
+}
+.page-detail-actions .detail-chart-refresh:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
 .page-detail-panel {
   flex: 1;
   min-height: 0;
@@ -910,6 +917,11 @@ label.field input, label.field select, label.field textarea {
   border-radius: var(--radius);
   padding: 0.45rem 0.55rem;
   font-size: 0.9rem;
+}
+label.field input:read-only {
+  background: var(--metric-bg);
+  color: var(--text);
+  cursor: default;
 }
 label.field.field-control-only {
   gap: 0;
