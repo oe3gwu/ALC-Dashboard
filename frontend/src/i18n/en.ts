@@ -156,18 +156,15 @@ export const en: Record<MessageKey, string> = {
   'chem.warningAdvanced':
     'Advanced settings: change these values only if you understand the effects. Incorrect parameters can damage batteries or create unsafe charging conditions.',
   'chem.warningDefaults':
-    'Form values (not from the device). “ELV factory” = documented ELV defaults; “Gentle” = longevity recommendation. Click “Apply” to write to the device.',
+    'Form values (not from the device). “ELV factory” loads stock ALC 8500-2 defaults. Click “Apply” to write to the device.',
   'chem.fromDevice': 'The values shown below come from the device.',
   'chem.read': 'Read',
   'chem.apply': 'Apply',
   'chem.factory': 'ELV factory',
-  'chem.gentle': 'Gentle (longevity)',
   'chem.readOk': 'Read from device',
   'chem.applyOk': 'Parameters applied',
   'chem.factoryOk':
     'ELV factory values loaded into the form — not on the device yet. Click “Apply” to save.',
-  'chem.gentleOk':
-    'Gentle values loaded into the form (less capacity, kinder to cells) — not on the device yet. Click “Apply” to save.',
   'chem.groupNiCd': 'NiCd',
   'chem.groupNiMH': 'NiMH',
   'chem.groupLi41': 'Li-4.1',

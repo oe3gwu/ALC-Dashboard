@@ -265,7 +265,7 @@ const de: GuideSection[] = [
       {
         type: 'ul',
         items: [
-          'ELV-Werkswerte und Schonend (Lebensdauer) setzen bekannte Profile.',
+          'ELV-Werkswerte setzen die Werkseinstellung eines ALC 8500-2.',
           'Falsche Werte können Akkus schädigen — nur ändern, wenn Sie die Wirkung kennen; Details in der ELV-Doku.',
           'Display-Beleuchtung und Beeps gehören zu den Einstellungen, nicht hierher.',
         ],
@@ -556,7 +556,7 @@ const en: GuideSection[] = [
       {
         type: 'ul',
         items: [
-          'ELV factory and Gentle (lifetime) apply known profiles.',
+          'ELV factory loads stock ALC 8500-2 defaults.',
           'Wrong values can damage batteries — change only if you understand the effects; see the ELV docs for details.',
           'Display backlight and beeps live under Settings, not here.',
         ],

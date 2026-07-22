@@ -154,18 +154,15 @@ export const de = {
   'chem.warningAdvanced':
     'Fortgeschrittene Einstellungen: Ändern Sie diese Werte nur, wenn Sie die Auswirkungen kennen. Falsche Parameter können Akkus beschädigen oder unsichere Ladebedingungen erzeugen.',
   'chem.warningDefaults':
-    'Formularwerte (nicht vom Gerät). „ELV-Werkswerte“ = dokumentierte ELV-Defaults; „Schonend“ = Lebensdauer-Empfehlung. Mit „Übernehmen“ aufs Gerät schreiben.',
+    'Formularwerte (nicht vom Gerät). „ELV-Werkswerte“ lädt die Werkseinstellung eines ALC 8500-2. Mit „Übernehmen“ aufs Gerät schreiben.',
   'chem.fromDevice': 'Die unten angezeigten Werte stammen vom Gerät.',
   'chem.read': 'Einlesen',
   'chem.apply': 'Übernehmen',
   'chem.factory': 'ELV-Werkswerte',
-  'chem.gentle': 'Schonend (Lebensdauer)',
   'chem.readOk': 'Vom Gerät eingelesen',
   'chem.applyOk': 'Parameter übernommen',
   'chem.factoryOk':
     'ELV-Werkswerte ins Formular geladen — noch nicht auf dem Gerät. Mit „Übernehmen“ speichern.',
-  'chem.gentleOk':
-    'Schonende Werte ins Formular geladen (weniger Kapazität, mehr Zellschonung) — noch nicht auf dem Gerät. Mit „Übernehmen“ speichern.',
   'chem.groupNiCd': 'NiCd',
   'chem.groupNiMH': 'NiMH',
   'chem.groupLi41': 'Li-4.1',

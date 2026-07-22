@@ -11,22 +11,22 @@ import {
 } from '../chemistryRanges'
 
 /**
- * ELV factory voltage defaults from ELV Firm-/Software-Upgrade ALC 8500 Expert-2.
- * Pause / cycles / −ΔU: previous software defaults (not numeric in ELV PDF tables).
+ * ELV / device factory chemistry — taken from a stock ALC 8500-2 Expert (device read).
+ * Li-Ion charge ends at 4.1 V per ELV range; LiPo at 4.2 V.
  */
 const ELV_FACTORY_G: Record<string, number> = clampChemRecord({
   discharge_NiCd_mV: 900,
-  discharge_NiMH_mV: 900,
+  discharge_NiMH_mV: 1000,
   discharge_LiIon_mV: 3000,
   discharge_LiPo_mV: 3100,
   discharge_Pb_mV: 1850,
-  pause_min: 1,
-  cycles_cycle_NiCd: 5,
-  cycles_cycle_NiMH: 5,
-  cycles_form_NiCd: 5,
+  pause_min: 10,
+  cycles_cycle_NiCd: 10,
+  cycles_cycle_NiMH: 10,
+  cycles_form_NiCd: 10,
   cycles_form_NiMH: 5,
-  dU_NiCd: 40,
-  dU_NiMH: 20,
+  dU_NiCd: 5,
+  dU_NiMH: 5,
 })
 
 const ELV_FACTORY_H: Record<string, number> = clampChemRecord({
@@ -34,7 +34,7 @@ const ELV_FACTORY_H: Record<string, number> = clampChemRecord({
   maintain_LiIon_mV: 4050,
   charge_LiPo_mV: 4200,
   maintain_LiPo_mV: 4150,
-  charge_Pb_mV: 2350,
+  charge_Pb_mV: 2360,
   maintain_Pb_mV: 2260,
 })
 
@@ -42,37 +42,6 @@ const ELV_FACTORY_J: Record<string, number> = clampChemRecord({
   discharge_LiFePO4_mV: 2300,
   charge_LiFePO4_mV: 3650,
   maintain_LiFePO4_mV: 3450,
-})
-
-/** Longevity-oriented: earlier cut-off, lower charge voltage — less capacity, kinder to cells. */
-const GENTLE_G: Record<string, number> = clampChemRecord({
-  discharge_NiCd_mV: 1000,
-  discharge_NiMH_mV: 1000,
-  discharge_LiIon_mV: 3100,
-  discharge_LiPo_mV: 3200,
-  discharge_Pb_mV: 1900,
-  pause_min: 5,
-  cycles_cycle_NiCd: 3,
-  cycles_cycle_NiMH: 3,
-  cycles_form_NiCd: 3,
-  cycles_form_NiMH: 3,
-  dU_NiCd: 25,
-  dU_NiMH: 12,
-})
-
-const GENTLE_H: Record<string, number> = clampChemRecord({
-  charge_LiIon_mV: 4000,
-  maintain_LiIon_mV: 3950,
-  charge_LiPo_mV: 4100,
-  maintain_LiPo_mV: 4050,
-  charge_Pb_mV: 2350,
-  maintain_Pb_mV: 2260,
-})
-
-const GENTLE_J: Record<string, number> = clampChemRecord({
-  discharge_LiFePO4_mV: 2400,
-  charge_LiFePO4_mV: 3600,
-  maintain_LiFePO4_mV: 3400,
 })
 
 function pickLiFe(j: Record<string, number | boolean>): Record<string, number> {
@@ -209,7 +178,7 @@ export function ChemistryParams() {
     gPreset: Record<string, number>,
     hPreset: Record<string, number>,
     jPreset: Record<string, number>,
-    okKey: 'chem.factoryOk' | 'chem.gentleOk',
+    okKey: 'chem.factoryOk',
   ) => {
     setErr('')
     setG(clampChemRecord({ ...gPreset }))
@@ -220,7 +189,6 @@ export function ChemistryParams() {
   }
 
   const doElvFactory = () => loadPreset(ELV_FACTORY_G, ELV_FACTORY_H, ELV_FACTORY_J, 'chem.factoryOk')
-  const doGentle = () => loadPreset(GENTLE_G, GENTLE_H, GENTLE_J, 'chem.gentleOk')
 
   const setGKey = (key: ChemRangeKey, v: number) => setG((prev) => ({ ...prev, [key]: v }))
   const setHKey = (key: ChemRangeKey, v: number) => setH((prev) => ({ ...prev, [key]: v }))
@@ -244,9 +212,6 @@ export function ChemistryParams() {
         </button>
         <button type="button" onClick={doElvFactory} disabled={busy}>
           {t('chem.factory')}
-        </button>
-        <button type="button" onClick={doGentle} disabled={busy}>
-          {t('chem.gentle')}
         </button>
       </div>
     </div>

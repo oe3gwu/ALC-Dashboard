@@ -27,8 +27,8 @@ export const CHEM_RANGES = {
   maintain_LiFePO4_mV: { min: 3250, max: 3650, step: 10, format: 'mV' },
 
   /** Wire: value / 100 = percent (40 → 0.40 %). */
-  dU_NiCd: { min: 15, max: 100, step: 1, format: 'dU' },
-  dU_NiMH: { min: 10, max: 40, step: 1, format: 'dU' },
+  dU_NiCd: { min: 5, max: 100, step: 1, format: 'dU' },
+  dU_NiMH: { min: 5, max: 40, step: 1, format: 'dU' },
 
   cycles_cycle_NiCd: { min: 2, max: 20, step: 1, format: 'int' },
   cycles_cycle_NiMH: { min: 2, max: 20, step: 1, format: 'int' },

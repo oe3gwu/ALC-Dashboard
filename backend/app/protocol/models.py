@@ -340,17 +340,17 @@ class DeviceParamsG:
     """g/G — discharge cutoffs, cycle counts, -dU, pause minutes."""
 
     discharge_NiCd_mV: int = 900
-    discharge_NiMH_mV: int = 900
+    discharge_NiMH_mV: int = 1000
     discharge_LiIon_mV: int = 3000
     discharge_LiPo_mV: int = 3100
     discharge_Pb_mV: int = 1850
-    pause_min: int = 1
-    cycles_cycle_NiCd: int = 5
-    cycles_cycle_NiMH: int = 5
-    cycles_form_NiCd: int = 5
+    pause_min: int = 10
+    cycles_cycle_NiCd: int = 10
+    cycles_cycle_NiMH: int = 10
+    cycles_form_NiCd: int = 10
     cycles_form_NiMH: int = 5
-    dU_NiCd: int = 40  # /100 = %
-    dU_NiMH: int = 20
+    dU_NiCd: int = 5  # /100 = %
+    dU_NiMH: int = 5
 
     def to_dict(self) -> dict[str, Any]:
         d = asdict(self)
@@ -412,7 +412,7 @@ class DeviceParamsH:
     maintain_LiIon_mV: int = 4050
     charge_LiPo_mV: int = 4200
     maintain_LiPo_mV: int = 4150
-    charge_Pb_mV: int = 2350
+    charge_Pb_mV: int = 2360
     maintain_Pb_mV: int = 2260
     unused: int = 0
 
