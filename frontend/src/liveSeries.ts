@@ -9,8 +9,6 @@ type ChannelSeries = {
 
 /** Bumped when filter semantics change so old glitchy series are discarded. */
 const SESSION_KEY = 'alc-live-series-v6'
-/** ~3 h at 1 Hz — beyond this the chart uses a sliding X window. */
-const MAX_POINTS = 10800
 
 type SessionPayload = {
   channels: Record<string, ChannelSeries>
@@ -102,7 +100,7 @@ function hydrateFromSession(): void {
       const ch = Number(key)
       if (!Number.isFinite(ch) || !value?.points || !Array.isArray(value.points)) continue
       const points = scrubPoints(
-        value.points.filter((p) => p && typeof p.t === 'number').slice(-MAX_POINTS),
+        value.points.filter((p) => p && typeof p.t === 'number'),
       )
       if (points.length === 0) continue
       seriesByChannel.set(ch, {
@@ -377,21 +375,18 @@ function resolveSample(
 }
 
 function appendPoint(series: ChannelSeries, now: number, sample: PendingSample): void {
-  series.points = [
-    ...series.points,
-    {
-      t: (now - series.t0) / 1000,
-      v: sample.v,
-      i: sample.i,
-      c: sample.c,
-    },
-  ].slice(-MAX_POINTS)
+  series.points.push({
+    t: (now - series.t0) / 1000,
+    v: sample.v,
+    i: sample.i,
+    c: sample.c,
+  })
   // Keep stored history free of sandwich spikes (wider window than before)
   if (series.points.length >= 3) {
     const n = series.points.length
     const window = Math.min(n, SCRUB_RUN_MAX * 2 + 3)
     const scrubbed = scrubPoints(series.points.slice(-window))
-    series.points = [...series.points.slice(0, Math.max(0, n - window)), ...scrubbed].slice(-MAX_POINTS)
+    series.points = [...series.points.slice(0, Math.max(0, n - window)), ...scrubbed]
   }
 }
 

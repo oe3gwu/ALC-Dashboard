@@ -24,13 +24,13 @@ function uiPx(px: number): number {
 function xRange(_u: uPlot, min: number, max: number): [number, number] {
   if (!Number.isFinite(max)) return [0, MIN_X_SPAN]
   const dataMin = Number.isFinite(min) ? min : 0
-  // Full history still in buffer → pin process start at 0
+  // Full history from process start → pin X at 0
   if (dataMin <= 0.5) {
     return [0, Math.max(max, MIN_X_SPAN)]
   }
-  // Older samples dropped (MAX_POINTS) → sliding window so the plot scrolls left
+  // Offset history (e.g. restored session) → keep full visible span
   const span = Math.max(max - dataMin, MIN_X_SPAN)
-  return [max - span, max]
+  return [dataMin, dataMin + span]
 }
 
 /**
