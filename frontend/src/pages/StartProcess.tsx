@@ -66,9 +66,18 @@ function fromPercent(pct: number): number {
   return Math.max(1, Math.min(150, pct))
 }
 
+/** Formieren / Zyklen / Auffrischen — Gerät akzeptiert nur Ni-Chemie (wie FW 2.08). */
+const NI_FAMILY_BATTERY_TYPES = new Set([0, 1, 7]) // NiCd, NiMH, NiZn
+const NI_ONLY_PROGRAMS = new Set([6, 7, 8])
+
+function programOkForBattery(batteryType: number, program: number): boolean {
+  if (NI_ONLY_PROGRAMS.has(program) && !NI_FAMILY_BATTERY_TYPES.has(batteryType)) return false
+  return true
+}
+
 type CorrectionMap = Record<string, { requested: unknown; device: unknown }>
 
-/** Device quirks not worth blocking start for (forming floor, Vollfaktor echo). */
+/** Device quirks not worth blocking start for (forming floor to ~C/10). */
 function notableCorrections(corrections: CorrectionMap | null | undefined): CorrectionMap {
   if (!corrections) return {}
   const out: CorrectionMap = {}
@@ -112,9 +121,9 @@ function formFromDeviceEcho(device: Record<string, unknown>, prev: Form): Form {
     charge_mA: num('charge_mA', prev.charge_mA),
     discharge_mA: num('discharge_mA', prev.discharge_mA),
     pause_s: num('pause_s', prev.pause_s),
-    // Keep requested 0 — device often floors forming; Vollfaktor echo is unreliable on P.
+    // Keep requested 0 — device often floors forming to ~C/10.
     forming_mA: prev.forming_mA === 0 ? 0 : forming,
-    full_factor: prev.full_factor,
+    full_factor: num('full_factor', prev.full_factor),
     program: num('program', prev.program),
   }
 }
@@ -181,6 +190,12 @@ export function StartProcess() {
     }
   }, [capabilities.battery_db])
 
+  useEffect(() => {
+    if (!programOkForBattery(form.battery_type, form.program)) {
+      setForm((f) => ({ ...f, program: 1 }))
+    }
+  }, [form.battery_type, form.program])
+
   const set = (k: keyof Form, v: number | boolean) => {
     setPreview(null)
     setPendingCorrections(null)
@@ -189,7 +204,13 @@ export function StartProcess() {
     if (k !== 'channel' && k !== 'activator' && k !== 'program') {
       setSelectedPresetSlot(SLOT_MANUAL)
     }
-    setForm((f) => ({ ...f, [k]: v, battery_slot: SLOT_MANUAL }))
+    setForm((f) => {
+      const next: Form = { ...f, [k]: v as never, battery_slot: SLOT_MANUAL }
+      if (k === 'battery_type' && typeof v === 'number' && !programOkForBattery(v, next.program)) {
+        next.program = 1 // Laden — Formieren/Zyklen/Auffrischen nur für Ni
+      }
+      return next
+    })
   }
 
   const setChannel = (ch: number) => {
@@ -385,14 +406,21 @@ export function StartProcess() {
             <label className="field">
               {t('start.program')}
               <select value={form.program} onChange={(e) => set('program', Number(e.target.value))}>
-                {Object.entries(prog).map(([k, v]) => (
-                  <option key={k} value={k}>
-                    {v}
-                  </option>
-                ))}
+                {Object.entries(prog)
+                  .filter(([k]) => programOkForBattery(form.battery_type, Number(k)))
+                  .map(([k, v]) => (
+                    <option key={k} value={k}>
+                      {v}
+                    </option>
+                  ))}
               </select>
             </label>
           </div>
+          {!NI_FAMILY_BATTERY_TYPES.has(form.battery_type) && (
+            <p className="muted" style={{ marginTop: '0.35rem', marginBottom: 0 }}>
+              {t('start.programNiOnlyHint')}
+            </p>
+          )}
           {connection?.connected && (
             <div className="row" style={{ marginTop: '0.55rem' }}>
               <button type="button" disabled={busy} onClick={() => void loadFromDevice()}>

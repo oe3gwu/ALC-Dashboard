@@ -119,7 +119,7 @@ const de: GuideSection[] = [
     blocks: [
       {
         type: 'p',
-        text: 'Nicht jedes Programm ist auf jedem Modell und für jede Chemie verfügbar. Die genaue Phasenfolge und Abbruchkriterien stehen in der ELV-Doku; die Zyklenanzahl für „Zyklen“ und „Formieren“ stellen Sie unter Akku-Typ-Parameter ein.',
+        text: 'Nicht jedes Programm ist auf jedem Modell und für jede Chemie verfügbar. Formieren, Zyklen und Auffrischen akzeptiert das Gerät nur bei NiCd/NiMH/NiZn (bei Pb/Li erscheint eine Ablehnung). Die Zyklenanzahl für „Zyklen“ und „Formieren“ stellen Sie unter Akku-Typ-Parameter ein.',
       },
       {
         type: 'ul',

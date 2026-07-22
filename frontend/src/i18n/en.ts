@@ -89,6 +89,7 @@ export const en: Record<MessageKey, string> = {
   'start.loadedFromDevice': 'Channel parameters loaded from device — not started yet.',
   'start.noDeviceConfig': 'No stored parameters on this channel.',
   'start.program': 'Program',
+  'start.programNiOnlyHint': 'Forming, Cycles and Refresh are only available for NiCd/NiMH/NiZn.',
   'start.batteryType': 'Battery type',
   'start.cells': 'Cells',
   'start.maxVoltage': 'Max. voltage',

@@ -100,11 +100,12 @@ class ChannelParams:
 
     @classmethod
     def decode(cls, data: bytes) -> ChannelParams:
-        """Decode p/P response body after command letter."""
-        # Expected layout after 'p'/'P':
-        # ch(1) slot(1) type(1) cells(1) Id(2) Ic(2) Cap(4) prog(1) If(2) pause(2) flags(1) full(1)
-        # + logger samples(2) + stage(1) on read responses
-        # 19 bytes core params; optional +2 logger samples +1 stage on reads
+        """Decode p/P response body after command letter.
+
+        SET (19 B): … flags, full_factor
+        READ (≥21 B): … flags, Messende(2), full_factor [, stage]
+        (same trailer order as ALC 5000; older code swapped Messende/Vollfaktor.)
+        """
         if len(data) < 19:
             raise ValueError(f"Kanalparameter zu kurz: {len(data)} Bytes")
         o = 0
@@ -130,18 +131,26 @@ class ChannelParams:
         o += 2
         flags = data[o]
         o += 1
-        full = data[o]
-        o += 1
+
+        logger = 0
+        full = 250
+        stage = 0
+        remaining = len(data) - o
+        if remaining >= 3:
+            # READ: Messende + Vollfaktor [+ stage]
+            logger = u16(data, o)
+            o += 2
+            full = data[o]
+            o += 1
+            if len(data) > o:
+                stage = data[o]
+        elif remaining >= 1:
+            # SET echo / write payload: Vollfaktor only
+            full = data[o]
+
         # FW 2.08: off is 0; API / ChargeProfessional use 250 = off
         if full == 0:
             full = 250
-        logger = 0
-        stage = 0
-        if len(data) >= o + 2:
-            logger = u16(data, o)
-            o += 2
-        if len(data) > o:
-            stage = data[o]
         return cls(
             channel=ch,
             battery_slot=slot,

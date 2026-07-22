@@ -77,6 +77,28 @@ PROGRAM_BY_NAME.update(
     }
 )
 
+# Formieren / Zyklen / Auffrischen — Gerät (FW 2.08) NAKs diese Programme außer bei Ni-Chemie
+NI_FAMILY_BATTERY_TYPES = frozenset({0x00, 0x01, 0x07})  # NiCd, NiMH, NiZn
+NI_ONLY_PROGRAMS = frozenset({0x06, 0x07, 0x08})
+
+
+def program_compatible(battery_type: int, program: int) -> bool:
+    """False when the device would NAK this chemistry/program pair."""
+    if program in NI_ONLY_PROGRAMS and battery_type not in NI_FAMILY_BATTERY_TYPES:
+        return False
+    return True
+
+
+def program_incompatible_message(battery_type: int, program: int) -> str | None:
+    if program_compatible(battery_type, program):
+        return None
+    bt = BATTERY_TYPES.get(battery_type, f"0x{battery_type:02X}")
+    prog = PROGRAMS.get(program, f"0x{program:02X}")
+    return (
+        f"Programm „{prog}“ ist für Akkutyp {bt} nicht verfügbar "
+        f"(nur NiCd/NiMH/NiZn). Bitte anderes Programm wählen."
+    )
+
 # Channel stage ranges (manual table)
 STAGE_IDLE = "Leerlauf"
 STAGE_PAUSE = "Pause/Warten"

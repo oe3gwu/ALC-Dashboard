@@ -27,7 +27,12 @@ from app.api.schemas import (
 )
 from app.config import ROOT, load_config, save_config
 from app.devices.profiles import get_profile, list_devices
-from app.protocol.constants import BATTERY_TYPES, PROGRAMS, SAMPLES_PER_BLOCK
+from app.protocol.constants import (
+    BATTERY_TYPES,
+    PROGRAMS,
+    SAMPLES_PER_BLOCK,
+    program_incompatible_message,
+)
 from app.protocol.models import (
     DeviceParamsG,
     DeviceParamsH,
@@ -66,6 +71,27 @@ def valid_channel(channel: int) -> None:
     n = channel_count()
     if channel < 0 or channel >= n:
         raise HTTPException(400, f"Kanal 0–{n - 1}")
+
+
+def ensure_program_compatible(params: Any) -> None:
+    msg = program_incompatible_message(int(params.battery_type), int(params.program))
+    if msg:
+        raise HTTPException(400, msg)
+
+
+def set_channel_params_http(client: Any, params: Any) -> Any:
+    """set_channel_params with device NAK / ValueError → HTTP 400 (not 500)."""
+    try:
+        return client.set_channel_params(params)
+    except ValueError as exc:
+        text = str(exc)
+        if "b'\\x04'" in text or text.rstrip().endswith("\\x04'"):
+            raise HTTPException(
+                400,
+                "Gerät hat die Parameter abgelehnt. Prüfen Sie Programm und Akkutyp "
+                "(Formieren/Zyklen/Auffrischen nur für NiCd/NiMH/NiZn).",
+            ) from exc
+        raise HTTPException(400, text) from exc
 
 
 AUTO_CONNECT_RETRY_S = 5.0
@@ -417,8 +443,9 @@ def set_channel(channel: int, body: ChannelParamsIn) -> dict[str, Any]:
         body.channel = channel
     client = require_client()
     params = channel_from_in(body)
+    ensure_program_compatible(params)
     with manager.with_client():
-        echoed = client.set_channel_params(params)
+        echoed = set_channel_params_http(client, params)
     req = params.to_dict()
     echo = echoed.to_dict()
     return {"params": echo, "corrections": diff_params(req, echo)}
@@ -439,6 +466,7 @@ def process_preview(body: StartProcessRequest) -> dict[str, Any]:
     client = require_client()
     params = channel_from_in(body.params)
     valid_channel(params.channel)
+    ensure_program_compatible(params)
     prof = current_profile()
     if getattr(params, "activator", False) and (
         not prof.features.activator or params.channel != prof.features.activator_channel
@@ -448,7 +476,7 @@ def process_preview(body: StartProcessRequest) -> dict[str, Any]:
         current = client.get_channel_params(params.channel)
         if current.stage_name != "Leerlauf":
             raise HTTPException(400, "Kanal ist nicht im Leerlauf")
-        echoed = client.set_channel_params(params)
+        echoed = set_channel_params_http(client, params)
     req = params.to_dict()
     echo = echoed.to_dict()
     return {
@@ -466,13 +494,14 @@ def process_start(body: StartProcessRequest) -> dict[str, Any]:
     client = require_client()
     params = channel_from_in(body.params)
     valid_channel(params.channel)
+    ensure_program_compatible(params)
     prof = current_profile()
     if getattr(params, "activator", False) and (
         not prof.features.activator or params.channel != prof.features.activator_channel
     ):
         raise HTTPException(400, "Aktivator für diesen Kanal/dieses Gerät nicht verfügbar")
     with manager.with_client():
-        echoed = client.set_channel_params(params)
+        echoed = set_channel_params_http(client, params)
         state = client.set_activity(params.channel, stop=False)
     return {
         "params": echoed.to_dict(),

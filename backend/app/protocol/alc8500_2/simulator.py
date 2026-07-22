@@ -73,6 +73,10 @@ class Alc8500_2Simulator:
                 _MODEL, p.channel, p.charge_mA, p.discharge_mA
             )
             p.battery_type = clamp_battery_type(p.battery_type, _ALLOWED_BT)
+            from app.protocol.constants import program_compatible
+
+            if not program_compatible(p.battery_type, p.program):
+                return bytes([0x04])  # NAK like real FW 2.08
             if not self.running[p.channel]:
                 self.channels[p.channel] = p
             return bytes([ord("p")]) + self._encode_params(self.channels[p.channel])
@@ -148,8 +152,10 @@ class Alc8500_2Simulator:
         return bytes([0x04])
 
     def _encode_params(self, p: ChannelParams) -> bytes:
-        base = p.encode_set()
-        return base + pack_u16(p.logger_samples) + bytes([p.stage & 0xFF])
+        # READ layout: … flags, Messende(2), Vollfaktor, stage (not flags+full+logger)
+        core = p.encode_set()
+        ff = core[-1]
+        return core[:-1] + pack_u16(p.logger_samples & 0xFFFF) + bytes([ff, p.stage & 0xFF])
 
     def _simulate_channel(self, ch: int) -> tuple[float, float, float]:
         """Return (voltage_V, current_mA, capacity_mAh) and update stage."""

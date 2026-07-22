@@ -87,6 +87,7 @@ export const de = {
   'start.loadedFromDevice': 'Kanalparameter vom Gerät übernommen — noch nicht gestartet.',
   'start.noDeviceConfig': 'Keine gespeicherten Parameter auf diesem Kanal.',
   'start.program': 'Programm',
+  'start.programNiOnlyHint': 'Formieren, Zyklen und Auffrischen sind nur für NiCd/NiMH/NiZn verfügbar.',
   'start.batteryType': 'Akkutyp',
   'start.cells': 'Zellen',
   'start.maxVoltage': 'Max. Spannung',

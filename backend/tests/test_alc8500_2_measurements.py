@@ -66,11 +66,32 @@ def test_extract_frames_ignores_escaped_etx():
 
 def test_full_factor_off_wire_zero_maps_to_api_250():
     from app.protocol.models import ChannelParams
+    from app.protocol.units import pack_u16
 
     core = ChannelParams(channel=2, cells=4, full_factor=250).encode_set()
     assert core[-1] == 0  # FW 2.08 wire off
-    decoded = ChannelParams.decode(core + b"\x00\x00")  # + logger
+    assert ChannelParams.decode(core).full_factor == 250  # SET length
+    # READ: Messende then Vollfaktor (0 = off → API 250)
+    read = core[:-1] + pack_u16(0) + bytes([0, 0x40])
+    decoded = ChannelParams.decode(read)
     assert decoded.full_factor == 250
+    assert decoded.logger_samples == 0
+    assert decoded.stage == 0x40
+
+
+def test_channel_read_messende_before_full_factor():
+    """Regression: swapped trailer showed logger high byte as Max.Ladung (e.g. 142% vs 100%)."""
+    from app.protocol.models import ChannelParams
+    from app.protocol.units import pack_u16
+
+    core = ChannelParams(channel=1, cells=6, full_factor=100, flags=1).encode_set()
+    # Hardware-shaped READ: logger 0x8E5A with Vollfaktor 100 → old decode claimed full=142
+    read = core[:-1] + pack_u16(0x8E5A) + bytes([100, 0])
+    decoded = ChannelParams.decode(read)
+    assert decoded.full_factor == 100
+    assert decoded.logger_samples == 0x8E5A
+    # Old layout treated Messende high byte as Vollfaktor → 0x8E = 142
+    assert read[18] == 0x8E
 
 
 def test_parse_ident_u_fw208_ff_padding():

@@ -65,6 +65,8 @@ Verified against ALC 8500-2 Expert hardware:
 | Activity `a` | Often `ch` + `stage` only (no action byte) |
 | Battery DB `d`/`D` | 25-byte Cap→Id→Ic entries: trailer is `flags` + `full_factor` + `0xFF` (no forming). Older decode wrongly treated trailer as forming and dropped Vollfaktor (UI showed Aus). |
 | Channel `P` Vollfaktor | Off is stored as `0` (API still uses `250` = off); forming current may be floored by device |
+| Channel `p` READ trailer | After `flags`: **Messende (2)** then **Vollfaktor** then stage — same order as ALC 5000. (Older decode swapped Messende/Vollfaktor and showed bogus Max. Ladung, e.g. 142% instead of 100%.) |
+| Channel `P` SET | After `flags`: **Vollfaktor** only (19-byte core); device may still reply with READ trailer |
 | Ident `u` | Pad bytes may be `FFh` instead of `00h`; FW string starts with Ident letter (`h`) |
 | Logger `v` | NAK under poll race — client retries after a `p` probe; may lack classic 3-record header |
 
