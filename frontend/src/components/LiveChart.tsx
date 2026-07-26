@@ -2,6 +2,7 @@ import { useEffect, useRef } from 'react'
 import uPlot from 'uplot'
 import 'uplot/dist/uPlot.min.css'
 import { useLocale } from '../locale'
+import { useTheme } from '../theme'
 
 export type ChartPoint = { t: number; v: number | null; i: number | null; c?: number | null }
 export type SeriesMode = 'ui' | 'cap'
@@ -10,9 +11,16 @@ const DEFAULT_HEIGHT = 280
 const MIN_WIDTH = 120
 const MIN_X_SPAN = 30 // seconds — avoids dense tick raster with tiny ranges
 
+/** Fallback when CSS vars are unavailable (tests / SSR). */
 export const COLOR_U = '#3c8dbc'
 export const COLOR_I = '#ec6a0c'
 export const COLOR_C = '#00a65a'
+
+function cssColor(name: string, fallback: string): string {
+  if (typeof document === 'undefined') return fallback
+  const v = getComputedStyle(document.documentElement).getPropertyValue(name).trim()
+  return v || fallback
+}
 
 /** Scale pixel sizes with root font-size (2K/4K fluid UI). */
 function uiPx(px: number): number {
@@ -124,6 +132,7 @@ export function LiveChart({
   onZoomLockChange?: (locked: boolean) => void
 }) {
   const { t, locale } = useLocale()
+  const { themePack, theme } = useTheme()
   const el = useRef<HTMLDivElement>(null)
   const plot = useRef<uPlot | null>(null)
   const pointsRef = useRef(points)
@@ -202,6 +211,10 @@ export function LiveChart({
         return
       }
 
+      const colorU = cssColor('--chart-u', COLOR_U)
+      const colorI = cssColor('--chart-i', COLOR_I)
+      const colorC = cssColor('--chart-c', COLOR_C)
+
       const opts: uPlot.Options =
         seriesMode === 'cap'
           ? {
@@ -213,7 +226,7 @@ export function LiveChart({
               hooks: zoomHooks,
               series: [
                 { label: labelT, value: (_u, v) => fmtTime(v) },
-                { label: labelC, stroke: COLOR_C, width: compact ? 1.5 : 2, value: (_u, v) => fmtC(v) },
+                { label: labelC, stroke: colorC, width: compact ? 1.5 : 2, value: (_u, v) => fmtC(v) },
               ],
               axes: [
                 {
@@ -223,7 +236,7 @@ export function LiveChart({
                   values: (_u, vals) => vals.map((v) => (Math.abs(v) >= 10 ? v.toFixed(0) : v.toFixed(1))),
                 },
                 {
-                  stroke: COLOR_C,
+                  stroke: colorC,
                   grid: { stroke: 'rgba(142, 152, 157, 0.12)', width: 1 },
                   size: axisMd,
                   values: (_u, vals) => vals.map((v) => v.toFixed(v >= 100 ? 0 : 1)),
@@ -244,10 +257,10 @@ export function LiveChart({
               hooks: zoomHooks,
               series: [
                 { label: labelT, value: (_u, v) => fmtTime(v) },
-                { label: labelU, stroke: COLOR_U, width: compact ? 1.5 : 2, value: (_u, v) => fmtU(v) },
+                { label: labelU, stroke: colorU, width: compact ? 1.5 : 2, value: (_u, v) => fmtU(v) },
                 {
                   label: labelI,
-                  stroke: COLOR_I,
+                  stroke: colorI,
                   width: compact ? 1.25 : 1.5,
                   scale: 'i',
                   value: (_u, v) => fmtI(v),
@@ -261,7 +274,7 @@ export function LiveChart({
                   values: (_u, vals) => vals.map((v) => (Math.abs(v) >= 10 ? v.toFixed(0) : v.toFixed(1))),
                 },
                 {
-                  stroke: COLOR_U,
+                  stroke: colorU,
                   grid: { stroke: 'rgba(142, 152, 157, 0.12)', width: 1 },
                   size: axisMd,
                   values: (_u, vals) => vals.map((v) => v.toFixed(v >= 10 ? 1 : 2)),
@@ -269,7 +282,7 @@ export function LiveChart({
                 {
                   scale: 'i',
                   side: 1,
-                  stroke: COLOR_I,
+                  stroke: colorI,
                   grid: { show: false },
                   size: axisMd,
                   values: (_u, vals) => vals.map((v) => v.toFixed(0)),
@@ -328,7 +341,7 @@ export function LiveChart({
       zoomLockRef.current = false
       onZoomLockChangeRef.current?.(false)
     }
-  }, [title, height, compact, seriesMode, locale, t, allowZoom])
+  }, [title, height, compact, seriesMode, locale, t, allowZoom, themePack, theme])
 
   useEffect(() => {
     if (!plot.current) {

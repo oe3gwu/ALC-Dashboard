@@ -257,7 +257,7 @@ export const de = {
   'set.appearance': 'Erscheinungsbild',
   'set.appearanceLead': 'Farbpalette und Hell-/Dunkelmodus für die Oberfläche.',
   'set.themePack': 'Theme',
-  'set.themePackHint': 'Farbpalette der Oberfläche (ELV oder SCCH).',
+  'set.themePackHint': 'Farbpalette der Oberfläche (ELV, SCCH oder Jerrec).',
   'set.themeMode': 'Modus',
   'set.themeModeLight': 'Hell',
   'set.themeModeDark': 'Dunkel',

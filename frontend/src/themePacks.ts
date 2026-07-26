@@ -1,6 +1,6 @@
 /** Named UI palettes. Light/dark mode is orthogonal (see theme.tsx). */
 
-export type ThemePackId = 'elv' | 'scch'
+export type ThemePackId = 'elv' | 'scch' | 'jerrec'
 
 export type ThemePack = {
   id: ThemePackId
@@ -11,7 +11,7 @@ export type ThemePack = {
   logoAlt?: string
 }
 
-/** Built-in packs. “ELV” is the AdminLTE-inspired default; “SCCH” uses lime accents. */
+/** Built-in packs. “ELV” is the AdminLTE-inspired default; “SCCH” lime; “Jerrec” magenta/violet. */
 export const THEME_PACKS: readonly ThemePack[] = [
   {
     id: 'elv',
@@ -25,12 +25,18 @@ export const THEME_PACKS: readonly ThemePack[] = [
     logoSrc: '/scch-logo.png',
     logoAlt: 'SCCH',
   },
+  {
+    id: 'jerrec',
+    label: 'Jerrec',
+    logoSrc: '/jerrec-logo.png',
+    logoAlt: 'Jerrec',
+  },
 ]
 
 export const DEFAULT_THEME_PACK: ThemePackId = 'elv'
 
 export function isThemePackId(v: string | null | undefined): v is ThemePackId {
-  return v === 'elv' || v === 'scch'
+  return v === 'elv' || v === 'scch' || v === 'jerrec'
 }
 
 export function getThemePack(id: ThemePackId): ThemePack {
