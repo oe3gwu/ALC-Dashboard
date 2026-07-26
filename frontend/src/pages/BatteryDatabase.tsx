@@ -165,7 +165,6 @@ export function BatteryDatabase() {
   return (
     <>
       <h1>{t('bat.title')}</h1>
-      <p className="lead">{t('bat.lead')}</p>
       {msg && <div className="toast ok">{msg}</div>}
       {err && <div className="toast error">{err}</div>}
 

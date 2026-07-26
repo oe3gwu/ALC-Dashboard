@@ -25,7 +25,6 @@ export function DeviceInfo() {
   return (
     <>
       <h1>{t('dev.title')}</h1>
-      <p className="lead">{t('dev.lead')}</p>
       {err && <div className="toast error">{err}</div>}
       <div className="panel stack">
         {info ? (

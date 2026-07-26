@@ -55,7 +55,6 @@ export function FirmwareUpdate() {
       <header className="fw-header">
         <h1>{t('fw.title')}</h1>
         {label && <p className="fw-device">{label}</p>}
-        <p className="lead">{t('fw.lead')}</p>
       </header>
 
       <div className="toast error" role="alert">

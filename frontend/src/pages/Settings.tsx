@@ -240,7 +240,6 @@ export function Settings() {
   return (
     <>
       <h1>{t('set.title')}</h1>
-      <p className="lead">{t('set.lead')}</p>
       <div className="panel">
         <h2>{t('set.connection')}</h2>
         <div className="form-grid">

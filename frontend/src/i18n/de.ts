@@ -115,8 +115,6 @@ export const de = {
   'detail.resetZoomTitle': 'Zoom zurücksetzen und Live-Ansicht fortsetzen',
 
   'bat.title': 'Akku-Datenbank',
-  'bat.lead':
-    '40 lokale Presets (Namen bis 9 Zeichen) — mit dem ALC synchronisieren wie in ChargeProfessional.',
   'bat.importAlc': 'Von ALC importieren',
   'bat.exportAlc': 'Ins ALC exportieren',
   'bat.saveJson': 'JSON speichern',
@@ -151,7 +149,6 @@ export const de = {
     'Alle 40 lokalen Presets ins ALC schreiben? Die Geräte-Datenbank wird überschrieben.',
 
   'chem.title': 'Akku-Typ-Parameter',
-  'chem.lead': 'Entlade-/Ladeschluss, −ΔU, Zyklen — zuerst Einlesen, dann Übernehmen. Display/Beeps unter Einstellungen.',
   'chem.warningAdvanced':
     'Fortgeschrittene Einstellungen: Ändern Sie diese Werte nur, wenn Sie die Auswirkungen kennen. Falsche Parameter können Akkus beschädigen oder unsichere Ladebedingungen erzeugen.',
   'chem.warningDefaults':
@@ -180,7 +177,6 @@ export const de = {
   'chem.pauseMin': 'Vorgabe Pause (min)',
 
   'log.title': 'Datenlogger',
-  'log.lead': 'Auslesen, Diagramme, Archiv — Export als CSV, JSON und PDF.',
   'log.channel': 'Kanal',
   'log.readDevice': 'Vom Gerät lesen',
   'log.reading': 'Lese…',
@@ -206,7 +202,6 @@ export const de = {
   'log.colSaved': 'Gespeichert',
 
   'dev.title': 'Geräteinfo',
-  'dev.lead': 'Entspricht ChargeProfessional → Hilfe → Info.',
   'dev.port': 'Port:',
   'dev.simulator': '(Simulator)',
   'dev.device': 'Gerät:',
@@ -216,7 +211,6 @@ export const de = {
     'Hinweis: Die Innenwiderstandsmessung (Ri) ist nur am Gerät mit Vierleiter-Kabel verfügbar — kein USB-Befehl in der Protokolldokumentation.',
 
   'fw.title': 'Firmware-Update',
-  'fw.lead': 'Nur Anleitung — dieses Dashboard schreibt keine Firmware.',
   'fw.noFlash':
     'Kein Flash über diese Software. Updates nur mit dem Update-Tool aus dem ELV-Paket — Pfad/COM laut Paket-Anleitung.',
   'fw.notSupported': 'Für das gewählte Gerätemodell ist kein Firmware-Assistent freigeschaltet.',
@@ -226,7 +220,6 @@ export const de = {
   'fw.sectionNotes': 'Hinweise',
 
   'set.title': 'Einstellungen',
-  'set.lead': 'Gerät, Port (Freitext) und Simulator. Port leer = Auto-Detect; Simulator nur ohne Port.',
   'set.connection': 'Verbindung',
   'set.device': 'Gerät',
   'set.deviceDisabled': 'nicht verfügbar',
@@ -271,8 +264,6 @@ export const de = {
   'set.themeModeHint': 'Auch über den Schalter in der Kopfzeile umschaltbar.',
 
   'help.title': 'Bedienungsanleitung',
-  'help.lead':
-    'Kurzanleitung zu den Funktionen dieses Dashboards. Abschnitte aufklappen für Details. Die Sprache folgt der Umschaltung oben rechts.',
 
   'nav.unavailable': 'Für dieses Gerät nicht verfügbar',
 } as const

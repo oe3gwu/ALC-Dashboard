@@ -42,7 +42,6 @@ export function UserGuide() {
   return (
     <>
       <h1>{t('help.title')}</h1>
-      <p className="lead">{t('help.lead')}</p>
       <div className="panel user-guide">
         <div className="user-guide-sections">
           {sections.map((section) => (

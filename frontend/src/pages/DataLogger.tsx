@@ -132,7 +132,6 @@ export function DataLogger() {
   return (
     <>
       <h1>{t('log.title')}</h1>
-      <p className="lead">{t('log.lead')}</p>
 
       <div className="panel stack">
         <div className="row logger-toolbar">

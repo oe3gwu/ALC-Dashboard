@@ -117,8 +117,6 @@ export const en: Record<MessageKey, string> = {
   'detail.resetZoomTitle': 'Reset zoom and resume live view',
 
   'bat.title': 'Battery database',
-  'bat.lead':
-    '40 local presets (names up to 9 characters) — sync with the ALC like ChargeProfessional.',
   'bat.importAlc': 'Import from ALC',
   'bat.exportAlc': 'Export to ALC',
   'bat.saveJson': 'Save JSON',
@@ -153,7 +151,6 @@ export const en: Record<MessageKey, string> = {
     'Write all 40 local presets to the ALC? The device database will be overwritten.',
 
   'chem.title': 'Chemistry parameters',
-  'chem.lead': 'Cut-off, −ΔU, cycles — read from the device first, then apply. Display/beeps are under Settings.',
   'chem.warningAdvanced':
     'Advanced settings: change these values only if you understand the effects. Incorrect parameters can damage batteries or create unsafe charging conditions.',
   'chem.warningDefaults':
@@ -182,7 +179,6 @@ export const en: Record<MessageKey, string> = {
   'chem.pauseMin': 'Default pause (min)',
 
   'log.title': 'Data logger',
-  'log.lead': 'Readout, charts, archive — export as CSV, JSON and PDF.',
   'log.channel': 'Channel',
   'log.readDevice': 'Read from device',
   'log.reading': 'Reading…',
@@ -208,7 +204,6 @@ export const en: Record<MessageKey, string> = {
   'log.colSaved': 'Saved',
 
   'dev.title': 'Device info',
-  'dev.lead': 'Same as ChargeProfessional → Help → Info.',
   'dev.port': 'Port:',
   'dev.simulator': '(Simulator)',
   'dev.device': 'Device:',
@@ -218,7 +213,6 @@ export const en: Record<MessageKey, string> = {
     'Note: Internal resistance (Ri) measurement is only available on the device with a four-wire cable — no USB command in the protocol docs.',
 
   'fw.title': 'Firmware update',
-  'fw.lead': 'Instructions only — this dashboard never writes firmware.',
   'fw.noFlash':
     'No flashing through this software. Use only the update tool from the ELV package — path/COM per package instructions.',
   'fw.notSupported': 'No firmware assistant is enabled for the selected device model.',
@@ -228,7 +222,6 @@ export const en: Record<MessageKey, string> = {
   'fw.sectionNotes': 'Notes',
 
   'set.title': 'Settings',
-  'set.lead': 'Device, free-text port, and simulator. Empty port = auto-detect; simulator only without a port.',
   'set.connection': 'Connection',
   'set.device': 'Device',
   'set.deviceDisabled': 'unavailable',
@@ -273,8 +266,6 @@ export const en: Record<MessageKey, string> = {
   'set.themeModeHint': 'Also switchable via the header control.',
 
   'help.title': 'User guide',
-  'help.lead':
-    'Short guide to this dashboard’s features. Expand a section for details. Language follows the switch at the top right.',
 
   'nav.unavailable': 'Not available for this device',
 }

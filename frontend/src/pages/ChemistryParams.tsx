@@ -220,7 +220,6 @@ export function ChemistryParams() {
   return (
     <>
       <h1>{t('chem.title')}</h1>
-      <p className="lead">{t('chem.lead')}</p>
 
       <div className="toast error" role="alert">
         {t('chem.warningAdvanced')}
