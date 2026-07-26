@@ -276,7 +276,7 @@
   --danger: #ff5555;
   --danger-solid: #e03e3e;
   --danger-solid-dim: #c53030;
-  --ok: #50fa7b;
+  --ok: #00a65a;
   --font: "Source Sans Pro", "Helvetica Neue", Helvetica, Arial, sans-serif;
   --mono: "IBM Plex Mono", ui-monospace, monospace;
   --sidebar-bg: #21222c;
@@ -287,7 +287,7 @@
   --chart-bg: #191a21;
   --chart-u: #bd93f9;
   --chart-i: #ffb86c;
-  --chart-c: #50fa7b;
+  --chart-c: #00a65a;
   --input-bg: #282a36;
   --nav-link: #f8f8f2;
   --nav-hover-bg: #44475a;
@@ -343,7 +343,7 @@
   --danger: #ff5555;
   --danger-solid: #e03e3e;
   --danger-solid-dim: #c53030;
-  --ok: #1f8a42;
+  --ok: #00a65a;
   --sidebar-bg: #21222c;
   --sidebar-line: #191a21;
   --channel-bg: #ffffff;
@@ -352,7 +352,7 @@
   --chart-bg: #f6f1fa;
   --chart-u: #bd93f9;
   --chart-i: #e09a50;
-  --chart-c: #1f8a42;
+  --chart-c: #00a65a;
   --input-bg: #ffffff;
   --nav-link: #f8f8f2;
   --nav-hover-bg: #44475a;
