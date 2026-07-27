@@ -72,15 +72,8 @@ export function Settings() {
       vid: string | null
       pid: string | null
       kind?: string
-      target?: string | null
-      group?: string | null
     }[]
   >([])
-  const [dialout, setDialout] = useState<{
-    user: string
-    group_exists: boolean
-    in_group: boolean
-  } | null>(null)
   const [setup, setSetup] = useState<DeviceSetup>({ ...DEFAULT_SETUP })
   const [setupBusy, setSetupBusy] = useState(false)
   const [setupMsg, setSetupMsg] = useState('')
@@ -106,14 +99,14 @@ export function Settings() {
     api
       .ports()
       .then((p) => {
-        setPorts(p.ports)
-        if (p.dialout) {
-          setDialout({
-            user: p.dialout.user,
-            group_exists: p.dialout.group_exists,
-            in_group: p.dialout.in_group,
-          })
-        }
+        // ELV udev aliases first, then other serial devices
+        const list = [...p.ports].sort((a, b) => {
+          const au = a.kind === 'udev' ? 0 : 1
+          const bu = b.kind === 'udev' ? 0 : 1
+          if (au !== bu) return au - bu
+          return a.device.localeCompare(b.device)
+        })
+        setPorts(list)
       })
       .catch(() => {})
   }, [])
@@ -280,94 +273,29 @@ export function Settings() {
             ))}
           </select>
         </label>
-        <label className="field field-span-2">
+        <label className="field">
           {t('set.serialPort')}
-          <div className="port-picker">
-            <select
-              value={serial && ports.some((p) => p.device === serial) ? serial : ''}
-              disabled={simulator && !portSet}
-              onChange={(e) => setSerial(e.target.value)}
-              aria-label={t('set.portPick')}
-            >
-              <option value="">{t('set.portPick')}</option>
-              {ports.some((p) => (p.kind || 'serial') !== 'udev') ? (
-                <optgroup label={t('set.portSerial')}>
-                  {ports
-                    .filter((p) => (p.kind || 'serial') !== 'udev')
-                    .map((p) => (
-                      <option key={p.device} value={p.device}>
-                        {p.device}
-                        {p.description ? ` — ${p.description}` : ''}
-                        {p.group ? ` [${p.group}]` : ''}
-                      </option>
-                    ))}
-                </optgroup>
-              ) : null}
-              {ports.some((p) => p.kind === 'udev') ? (
-                <optgroup label={t('set.portUdev')}>
-                  {ports
-                    .filter((p) => p.kind === 'udev')
-                    .map((p) => (
-                      <option key={p.device} value={p.device}>
-                        {p.device}
-                        {p.description ? ` — ${p.description}` : ''}
-                        {p.group ? ` [${p.group}]` : ''}
-                      </option>
-                    ))}
-                </optgroup>
-              ) : null}
-            </select>
-            {ports.length > 0 ? (
-              <div className="port-chips" role="list">
-                {ports.map((p) => {
-                  const udev = p.kind === 'udev'
-                  const active = serial === p.device
-                  return (
-                    <button
-                      key={p.device}
-                      type="button"
-                      role="listitem"
-                      className={`port-chip${udev ? ' udev' : ' serial'}${active ? ' active' : ''}`}
-                      disabled={simulator && !portSet}
-                      title={[
-                        p.description,
-                        p.target ? `→ ${p.target}` : '',
-                        p.group ? `group=${p.group}` : '',
-                        p.vid ? `${p.vid}:${p.pid}` : '',
-                      ]
-                        .filter(Boolean)
-                        .join(' · ')}
-                      onClick={() => setSerial(p.device)}
-                    >
-                      <span className="port-chip-path">{p.device}</span>
-                      {p.group ? <span className="port-chip-meta">{p.group}</span> : null}
-                    </button>
-                  )
-                })}
-              </div>
-            ) : null}
-            <input
-              className="port-manual"
-              value={serial}
-              placeholder={t('set.placeholder')}
-              disabled={simulator && !portSet}
-              onChange={(e) => setSerial(e.target.value)}
-            />
-          </div>
-          <span className="field-hint">{t('set.serialPortHint')}</span>
-          {dialout ? (
-            <span
-              className={`field-hint dialout-hint${
-                !dialout.group_exists ? ' warn' : dialout.in_group ? ' ok' : ' warn'
-              }`}
-            >
-              {!dialout.group_exists
-                ? t('set.dialoutGroupMissing')
-                : dialout.in_group
-                  ? t('set.dialoutOk').replaceAll('{user}', dialout.user)
-                  : t('set.dialoutMissing').replaceAll('{user}', dialout.user)}
-            </span>
-          ) : null}
+          <input
+            list="serial-port-suggestions"
+            className={ports.some((p) => p.device === serial && p.kind === 'udev') ? 'port-udev' : undefined}
+            value={serial}
+            placeholder={t('set.placeholder')}
+            disabled={simulator && !portSet}
+            onChange={(e) => setSerial(e.target.value)}
+          />
+          <datalist id="serial-port-suggestions">
+            {ports.map((p) => (
+              <option
+                key={p.device}
+                value={p.device}
+                label={
+                  p.kind === 'udev'
+                    ? `ELV · ${p.description || p.device}${p.vid ? ` (${p.vid}:${p.pid})` : ''}`
+                    : `${p.description || p.device}${p.vid ? ` (${p.vid}:${p.pid})` : ''}`
+                }
+              />
+            ))}
+          </datalist>
         </label>
         <label className="field">
           {t('set.simulator')}
@@ -504,7 +432,6 @@ export function Settings() {
                 </option>
               ))}
             </select>
-            <span className="field-hint">{t('set.themePackHint')}</span>
           </label>
           <label className="field">
             {t('set.themeMode')}
@@ -512,7 +439,6 @@ export function Settings() {
               <option value="light">{t('set.themeModeLight')}</option>
               <option value="dark">{t('set.themeModeDark')}</option>
             </select>
-            <span className="field-hint">{t('set.themeModeHint')}</span>
           </label>
         </div>
       </div>

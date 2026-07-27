@@ -162,7 +162,7 @@
   --nav-hover-bg: #1f1f1f;
   --nav-active-bg: #1f1f1f;
   --nav-active-color: #00f300;
-  --primary-text: #0a0a0a;
+  --primary-text: #ffffff;
   --btn-bg: #1f1f1f;
   --btn-border: #2a2a2a;
   --danger-btn-bg: rgba(221, 75, 57, 0.18);
@@ -197,7 +197,7 @@
   color-scheme: dark;
 }
 
-/* SCCH light: light content + dark chrome; lime accents, readable dark-green links in content. */
+/* SCCH light: light content + dark chrome; same neon lime as dark (#00f300). */
 [data-theme-pack="scch"][data-theme="light"] {
   --bg0: #f0f2f4;
   --bg1: #ffffff;
@@ -205,13 +205,13 @@
   --line: #d2d6de;
   --text: #1a1a1a;
   --muted: #5a6570;
-  --accent: #00a800;
-  --accent-dim: #008f00;
+  --accent: #00f300;
+  --accent-dim: #00c300;
   --warn: #ec6a0c;
   --danger: #dd4b39;
   --danger-solid: #b83428;
   --danger-solid-dim: #9a2b21;
-  --ok: #00a800;
+  --ok: #00f300;
   --sidebar-bg: #0a0a0a;
   --sidebar-line: #000000;
   --channel-bg: #ffffff;
@@ -238,9 +238,9 @@
   --toast-err-bg: rgba(221, 75, 57, 0.1);
   --toast-err-border: rgba(221, 75, 57, 0.35);
   --toast-err-text: #b53a2a;
-  --toast-ok-bg: rgba(0, 168, 0, 0.1);
-  --toast-ok-border: rgba(0, 168, 0, 0.35);
-  --toast-ok-text: #00733e;
+  --toast-ok-bg: rgba(0, 243, 0, 0.12);
+  --toast-ok-border: rgba(0, 243, 0, 0.4);
+  --toast-ok-text: #00f300;
   --modal-backdrop: rgba(0, 0, 0, 0.4);
   --live-lost-backdrop: rgba(80, 80, 80, 0.5);
   --switch-track: rgba(0, 0, 0, 0.28);
@@ -1190,74 +1190,11 @@ label.field .field-hint {
   color: var(--muted);
   opacity: 0.9;
 }
-label.field .field-hint.dialout-hint.ok {
-  color: var(--ok);
-  opacity: 1;
-}
-label.field .field-hint.dialout-hint.warn {
-  color: var(--warn);
-  opacity: 1;
-}
-
-.port-picker {
-  display: flex;
-  flex-direction: column;
-  gap: 0.45rem;
-}
-.port-chips {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 0.4rem;
-}
-.port-chip {
-  display: inline-flex;
-  align-items: center;
-  gap: 0.4rem;
-  font-family: var(--mono);
-  font-size: 0.78rem;
-  padding: 0.35rem 0.55rem;
-  border-radius: var(--radius);
-  border: 1px solid var(--line);
-  background: var(--btn-bg);
-  color: var(--text);
-  cursor: pointer;
-  max-width: 100%;
-}
-.port-chip:hover:not(:disabled) {
-  border-color: var(--accent-dim);
-}
-.port-chip.serial.active {
-  border-color: var(--accent-dim);
-  background: color-mix(in srgb, var(--accent) 16%, var(--btn-bg));
-}
-.port-chip.udev {
-  border-color: color-mix(in srgb, var(--accent) 55%, var(--line));
+/* ELV udev alias selected in the classic serial-port field */
+label.field input.port-udev {
   color: var(--accent);
-}
-.port-chip.udev.active {
-  background: color-mix(in srgb, var(--accent) 22%, var(--btn-bg));
-  border-color: var(--accent);
-  color: var(--accent);
-}
-.port-chip-path {
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-.port-chip-meta {
-  font-size: 0.7rem;
-  opacity: 0.85;
-  color: var(--muted);
-  padding: 0.05rem 0.3rem;
-  border-radius: 2px;
-  background: var(--metric-bg);
-}
-.port-chip.udev .port-chip-meta {
-  color: var(--accent);
-  background: color-mix(in srgb, var(--accent) 12%, transparent);
-}
-.port-manual {
-  width: 100%;
+  font-weight: 600;
+  border-color: color-mix(in srgb, var(--accent) 45%, var(--line));
 }
 label.field input[type='checkbox'] {
   width: auto;

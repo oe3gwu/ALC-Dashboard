@@ -226,14 +226,6 @@ export const en: Record<MessageKey, string> = {
   'set.device': 'Device',
   'set.deviceDisabled': 'unavailable',
   'set.serialPort': 'Serial port',
-  'set.serialPortHint': 'Empty = auto-detect. Udev aliases (/dev/elv-alc*) are stable names.',
-  'set.portSerial': 'Devices',
-  'set.portUdev': 'Udev (stable)',
-  'set.portPick': 'Choose port…',
-  'set.dialoutOk': 'Service user {user} is in the dialout group.',
-  'set.dialoutMissing':
-    'Service user {user} is not in dialout — serial access may fail. Re-run the installer or: sudo usermod -aG dialout {user}',
-  'set.dialoutGroupMissing': 'System group dialout is missing.',
   'set.simulator': 'Simulator',
   'set.simulatorHint': 'Starts the simulator for the selected device (port must be empty). Processes run at ×10 speed; phases finish within a few minutes.',
   'set.simulatorNeedsEmptyPort': 'Simulator is only available when no port is set.',
@@ -267,12 +259,9 @@ export const en: Record<MessageKey, string> = {
   'set.appearance': 'Appearance',
   'set.appearanceLead': 'Color palette and light/dark mode for the UI.',
   'set.themePack': 'Theme',
-  'set.themePackHint': 'UI color palette (ELV, SCCH, or Dracula).',
   'set.themeMode': 'Mode',
   'set.themeModeLight': 'Light',
   'set.themeModeDark': 'Dark',
-  'set.themeModeHint':
-    'Also switchable via the header control. On theme change: ELV/SCCH → light, Dracula → dark.',
 
   'help.title': 'User guide',
 
