@@ -421,6 +421,22 @@ a:hover { text-decoration: underline; }
 [data-theme-pack="scch"][data-theme="dark"] a:hover {
   color: #00f300;
 }
+[data-theme-pack="scch"][data-theme="dark"] a.btn.primary,
+[data-theme-pack="scch"][data-theme="dark"] a.primary {
+  color: var(--primary-text);
+}
+[data-theme-pack="scch"][data-theme="dark"] a.btn.primary:hover,
+[data-theme-pack="scch"][data-theme="dark"] a.primary:hover {
+  color: var(--primary-text);
+}
+[data-theme-pack="scch"][data-theme="dark"] a.btn.primary-danger,
+[data-theme-pack="scch"][data-theme="dark"] a.primary-danger {
+  color: var(--on-danger-text, #ffffff);
+}
+[data-theme-pack="scch"][data-theme="dark"] a.btn.primary-danger:hover,
+[data-theme-pack="scch"][data-theme="dark"] a.primary-danger:hover {
+  color: var(--on-danger-text, #ffffff);
+}
 /* SCCH light: content links/titles use muted on white; sidebar keeps chrome grey. */
 [data-theme-pack="scch"][data-theme="light"] a {
   color: var(--muted);
@@ -436,6 +452,14 @@ a:hover { text-decoration: underline; }
 }
 [data-theme-pack="scch"][data-theme="light"] .nav a.active {
   color: var(--nav-active-color);
+}
+[data-theme-pack="scch"][data-theme="light"] a.btn.primary,
+[data-theme-pack="scch"][data-theme="light"] a.primary {
+  color: var(--primary-text);
+}
+[data-theme-pack="scch"][data-theme="light"] a.btn.primary:hover,
+[data-theme-pack="scch"][data-theme="light"] a.primary:hover {
+  color: var(--primary-text);
 }
 
 .app {
