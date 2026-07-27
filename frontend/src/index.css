@@ -138,7 +138,7 @@
   --bg2: #1f1f1f;
   --line: #2a2a2a;
   --text: #ffffff;
-  --muted: #a0a0a0;
+  --muted: #b0b0b0;
   --accent: #00f300;
   --accent-dim: #00c300;
   --warn: #ec6a0c;
@@ -158,7 +158,7 @@
   --chart-i: #ec6a0c;
   --chart-c: #00a65a;
   --input-bg: #1a1a1a;
-  --nav-link: #ffffff;
+  --nav-link: #b0b0b0;
   --nav-hover-bg: #1f1f1f;
   --nav-active-bg: #1f1f1f;
   --nav-active-color: #00f300;
@@ -204,7 +204,7 @@
   --bg2: #e8eaed;
   --line: #d2d6de;
   --text: #1a1a1a;
-  --muted: #5a6570;
+  --muted: #b0b0b0;
   --accent: #00f300;
   --accent-dim: #00c300;
   --warn: #ec6a0c;
@@ -222,7 +222,7 @@
   --chart-i: #ec6a0c;
   --chart-c: #00a65a;
   --input-bg: #ffffff;
-  --nav-link: #ffffff;
+  --nav-link: #b0b0b0;
   --nav-hover-bg: #1f1f1f;
   --nav-active-bg: #1f1f1f;
   --nav-active-color: #00f300;
@@ -1253,6 +1253,12 @@ label.field input.corrected {
   padding: 0;
   border: none;
   background: transparent;
+}
+/* SCCH light: native range tracks render black; use dark color-scheme so
+   track/thumb match SCCH dark (grey track + neon accent). */
+[data-theme-pack="scch"][data-theme="light"] .setup-slider,
+[data-theme-pack="scch"][data-theme="light"] .full-factor-slider {
+  color-scheme: dark;
 }
 .setup-slider-value {
   font-family: var(--mono);
