@@ -15,7 +15,7 @@ export type ThemePack = {
   defaultMode?: ThemeMode
 }
 
-/** Built-in packs. “ELV” AdminLTE; “SCCH” lime; “Dracula” / Alucard. */
+/** Built-in packs. “ELV” AdminLTE; “SCCH” Password-Pusher lime; “Dracula” / Alucard. */
 export const THEME_PACKS: readonly ThemePack[] = [
   {
     id: 'elv',
@@ -28,6 +28,7 @@ export const THEME_PACKS: readonly ThemePack[] = [
     label: 'SCCH',
     logoSrc: '/scch-logo.png',
     logoAlt: 'SCCH',
+    defaultMode: 'dark',
   },
   {
     id: 'dracula',
