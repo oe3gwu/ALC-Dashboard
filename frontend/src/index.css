@@ -133,10 +133,10 @@
  * Titles/nav/links on dark chrome are white (not black-on-black).
  */
 [data-theme-pack="scch"][data-theme="dark"] {
-  --bg0: #0d0d0d;
-  --bg1: #141414;
-  --bg2: #1f1f1f;
-  --line: #2a2a2a;
+  --bg0: #1a1a1a;
+  --bg1: #222222;
+  --bg2: #2c2c2c;
+  --line: #383838;
   --text: #ffffff;
   --muted: #b0b0b0;
   --accent: #00f300;
@@ -148,23 +148,23 @@
   --ok: #00f300;
   --font: "Source Sans Pro", "Helvetica Neue", Helvetica, Arial, sans-serif;
   --mono: "IBM Plex Mono", ui-monospace, monospace;
-  --sidebar-bg: #0a0a0a;
-  --sidebar-line: #000000;
-  --channel-bg: #141414;
-  --panel-bg: #141414;
-  --metric-bg: #1a1a1a;
-  --chart-bg: #0a0a0a;
+  --sidebar-bg: #161616;
+  --sidebar-line: #121212;
+  --channel-bg: #222222;
+  --panel-bg: #222222;
+  --metric-bg: #282828;
+  --chart-bg: #161616;
   --chart-u: #3c8dbc;
   --chart-i: #ec6a0c;
   --chart-c: #00a65a;
-  --input-bg: #1a1a1a;
+  --input-bg: #282828;
   --nav-link: #b0b0b0;
-  --nav-hover-bg: #1f1f1f;
-  --nav-active-bg: #1f1f1f;
+  --nav-hover-bg: #2c2c2c;
+  --nav-active-bg: #2c2c2c;
   --nav-active-color: #00f300;
   --primary-text: #ffffff;
-  --btn-bg: #1f1f1f;
-  --btn-border: #2a2a2a;
+  --btn-bg: #2c2c2c;
+  --btn-border: #383838;
   --danger-btn-bg: rgba(221, 75, 57, 0.18);
   --danger-btn-border: rgba(221, 75, 57, 0.5);
   --danger-btn-text: #f5b4ac;
@@ -177,14 +177,14 @@
   --toast-ok-bg: rgba(0, 243, 0, 0.12);
   --toast-ok-border: rgba(0, 243, 0, 0.4);
   --toast-ok-text: #00f300;
-  --modal-backdrop: rgba(0, 0, 0, 0.7);
-  --live-lost-backdrop: rgba(40, 40, 40, 0.7);
+  --modal-backdrop: rgba(0, 0, 0, 0.65);
+  --live-lost-backdrop: rgba(50, 50, 50, 0.7);
   --switch-track: rgba(255, 255, 255, 0.18);
   --switch-knob: #ffffff;
   --switch-fg: #ffffff;
-  --header-bg: #0a0a0a;
-  --header-brand-bg: #000000;
-  --header-border: #0a0a0a;
+  --header-bg: #161616;
+  --header-brand-bg: #121212;
+  --header-border: #161616;
   --brand-fg: #ffffff;
   --topbar-bg: var(--header-bg);
   --topbar-fg: #ffffff;
@@ -197,14 +197,14 @@
   color-scheme: dark;
 }
 
-/* SCCH light: light content + dark chrome; same neon lime as dark (#00f300). */
+/* SCCH light: light content + dark chrome (same chrome as SCCH dark); darker greys on white. */
 [data-theme-pack="scch"][data-theme="light"] {
   --bg0: #f0f2f4;
   --bg1: #ffffff;
   --bg2: #e8eaed;
   --line: #d2d6de;
   --text: #1a1a1a;
-  --muted: #b0b0b0;
+  --muted: #5c5c5c;
   --accent: #00f300;
   --accent-dim: #00c300;
   --warn: #ec6a0c;
@@ -212,8 +212,8 @@
   --danger-solid: #b83428;
   --danger-solid-dim: #9a2b21;
   --ok: #00f300;
-  --sidebar-bg: #0a0a0a;
-  --sidebar-line: #000000;
+  --sidebar-bg: #161616;
+  --sidebar-line: #121212;
   --channel-bg: #ffffff;
   --panel-bg: #ffffff;
   --metric-bg: #f5f7f8;
@@ -223,8 +223,8 @@
   --chart-c: #00a65a;
   --input-bg: #ffffff;
   --nav-link: #b0b0b0;
-  --nav-hover-bg: #1f1f1f;
-  --nav-active-bg: #1f1f1f;
+  --nav-hover-bg: #2c2c2c;
+  --nav-active-bg: #2c2c2c;
   --nav-active-color: #00f300;
   --primary-text: #0a0a0a;
   --btn-bg: #f0f2f4;
@@ -246,9 +246,9 @@
   --switch-track: rgba(0, 0, 0, 0.28);
   --switch-knob: #ffffff;
   --switch-fg: #ffffff;
-  --header-bg: #0a0a0a;
-  --header-brand-bg: #000000;
-  --header-border: #0a0a0a;
+  --header-bg: #161616;
+  --header-brand-bg: #121212;
+  --header-border: #161616;
   --brand-fg: #ffffff;
   --topbar-bg: var(--header-bg);
   --topbar-fg: #ffffff;
@@ -743,8 +743,25 @@ select option:disabled {
 
 h1 {
   margin: 0 0 1rem;
-  font-size: 1.45rem;
+  font-size: 1.2rem;
   font-weight: 600;
+  color: var(--text);
+}
+/* Corporate section titles (same as Vorgang starten „Kanal & Preset“) */
+h2 {
+  margin: 0 0 0.75rem;
+  font-size: 0.78rem;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+.modal h2 {
+  margin: 0 0 0.75rem;
+  font-size: 1.2rem;
+  font-weight: 600;
+  letter-spacing: normal;
+  text-transform: none;
   color: var(--text);
 }
 
@@ -780,6 +797,10 @@ h1 {
 }
 .channel-compact header h2 {
   font-size: 0.95rem;
+  font-weight: 600;
+  letter-spacing: normal;
+  text-transform: none;
+  color: var(--text);
 }
 .channel-meta {
   font-size: 0.78rem;
@@ -1031,6 +1052,9 @@ h1 {
   margin: 0;
   font-size: 1rem;
   font-weight: 600;
+  letter-spacing: normal;
+  text-transform: none;
+  color: var(--text);
 }
 
 .badge {
@@ -1126,8 +1150,8 @@ button, .btn {
   background: var(--btn-bg);
   color: var(--text);
   border-radius: var(--radius);
-  padding: 0.45rem 0.75rem;
-  font-size: 0.88rem;
+  padding: 0.4rem 0.7rem;
+  font-size: 0.82rem;
   cursor: pointer;
   box-shadow: none;
 }
@@ -1391,7 +1415,7 @@ label.field input.corrected {
 }
 .chem-subtype h3 {
   margin: 0 0 0.5rem;
-  font-size: 0.95rem;
+  font-size: 0.9rem;
   font-weight: 600;
   color: var(--text);
 }
@@ -1399,7 +1423,7 @@ label.field input.corrected {
 .table {
   width: 100%;
   border-collapse: collapse;
-  font-size: 0.88rem;
+  font-size: 0.82rem;
 }
 .table th, .table td {
   border-bottom: 1px solid var(--line);
@@ -1434,7 +1458,7 @@ label.field input.corrected {
 .sidebar-status-port {
   margin: 0.15rem 0 0 1.15rem;
   font-size: 0.8em;
-  color: var(--muted);
+  color: var(--nav-link);
   word-break: break-all;
 }
 
@@ -1551,6 +1575,10 @@ ol.steps li { margin: 0.4rem 0; }
 }
 .fw-header h1 {
   margin-bottom: 0.2rem;
+  font-size: 1.45rem;
+}
+.fw-page > h1 {
+  font-size: 1.45rem;
 }
 .fw-device {
   margin: 0 0 0.35rem;
@@ -1566,9 +1594,6 @@ ol.steps li { margin: 0.4rem 0; }
 }
 .fw-section h2 {
   margin: 0 0 0.65rem;
-  font-size: 1.05rem;
-  font-weight: 600;
-  color: var(--text);
 }
 .fw-body,
 .fw-mono,
