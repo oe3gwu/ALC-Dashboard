@@ -154,9 +154,9 @@
   --panel-bg: #141414;
   --metric-bg: #1a1a1a;
   --chart-bg: #0a0a0a;
-  --chart-u: #00f300;
+  --chart-u: #3c8dbc;
   --chart-i: #ec6a0c;
-  --chart-c: #3c8dbc;
+  --chart-c: #00a65a;
   --input-bg: #1a1a1a;
   --nav-link: #ffffff;
   --nav-hover-bg: #1f1f1f;
@@ -218,9 +218,9 @@
   --panel-bg: #ffffff;
   --metric-bg: #f5f7f8;
   --chart-bg: #f5f7f8;
-  --chart-u: #00a800;
+  --chart-u: #3c8dbc;
   --chart-i: #ec6a0c;
-  --chart-c: #2a7ab0;
+  --chart-c: #00a65a;
   --input-bg: #ffffff;
   --nav-link: #ffffff;
   --nav-hover-bg: #1f1f1f;
@@ -1189,6 +1189,75 @@ label.field .field-hint {
   font-size: 0.75rem;
   color: var(--muted);
   opacity: 0.9;
+}
+label.field .field-hint.dialout-hint.ok {
+  color: var(--ok);
+  opacity: 1;
+}
+label.field .field-hint.dialout-hint.warn {
+  color: var(--warn);
+  opacity: 1;
+}
+
+.port-picker {
+  display: flex;
+  flex-direction: column;
+  gap: 0.45rem;
+}
+.port-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+}
+.port-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  font-family: var(--mono);
+  font-size: 0.78rem;
+  padding: 0.35rem 0.55rem;
+  border-radius: var(--radius);
+  border: 1px solid var(--line);
+  background: var(--btn-bg);
+  color: var(--text);
+  cursor: pointer;
+  max-width: 100%;
+}
+.port-chip:hover:not(:disabled) {
+  border-color: var(--accent-dim);
+}
+.port-chip.serial.active {
+  border-color: var(--accent-dim);
+  background: color-mix(in srgb, var(--accent) 16%, var(--btn-bg));
+}
+.port-chip.udev {
+  border-color: color-mix(in srgb, var(--accent) 55%, var(--line));
+  color: var(--accent);
+}
+.port-chip.udev.active {
+  background: color-mix(in srgb, var(--accent) 22%, var(--btn-bg));
+  border-color: var(--accent);
+  color: var(--accent);
+}
+.port-chip-path {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.port-chip-meta {
+  font-size: 0.7rem;
+  opacity: 0.85;
+  color: var(--muted);
+  padding: 0.05rem 0.3rem;
+  border-radius: 2px;
+  background: var(--metric-bg);
+}
+.port-chip.udev .port-chip-meta {
+  color: var(--accent);
+  background: color-mix(in srgb, var(--accent) 12%, transparent);
+}
+.port-manual {
+  width: 100%;
 }
 label.field input[type='checkbox'] {
   width: auto;

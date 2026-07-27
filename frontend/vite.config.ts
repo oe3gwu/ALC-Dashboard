@@ -7,7 +7,7 @@ export default defineConfig({
     react(),
     VitePWA({
       registerType: 'autoUpdate',
-      includeAssets: ['favicon.ico', 'elv-logo.png'],
+      includeAssets: ['favicon.ico', 'favicon-32.png', 'app-logo.png', 'elv-logo.png'],
       manifest: {
         name: 'ELV ALC Dashboard',
         short_name: 'ALC Dashboard',

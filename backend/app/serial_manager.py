@@ -66,6 +66,9 @@ class PortInfo:
     hwid: str
     vid: int | None = None
     pid: int | None = None
+    kind: str = "serial"  # serial | udev
+    target: str | None = None  # resolved path for udev symlinks
+    group: str | None = None  # owning group of the device node (often dialout)
 
     def to_dict(self) -> dict[str, Any]:
         return {
@@ -74,7 +77,45 @@ class PortInfo:
             "hwid": self.hwid,
             "vid": f"{self.vid:04X}" if self.vid is not None else None,
             "pid": f"{self.pid:04X}" if self.pid is not None else None,
+            "kind": self.kind,
+            "target": self.target,
+            "group": self.group,
         }
+
+
+def _device_group_name(path: str) -> str | None:
+    """Group name of the device node (follows symlink to the tty)."""
+    try:
+        import grp
+        import os
+
+        st = os.stat(path)
+        return grp.getgrgid(st.st_gid).gr_name
+    except Exception:
+        return None
+
+
+def dialout_status() -> dict[str, Any]:
+    """Whether the current process user is in the dialout group."""
+    import getpass
+    import grp
+    import os
+
+    user = getpass.getuser()
+    try:
+        dialout = grp.getgrnam("dialout")
+        group_exists = True
+        in_group = dialout.gr_gid in os.getgroups() or user in dialout.gr_mem
+    except KeyError:
+        dialout = None
+        group_exists = False
+        in_group = False
+    return {
+        "user": user,
+        "group_exists": group_exists,
+        "in_group": in_group,
+        "group_members": list(dialout.gr_mem) if dialout else [],
+    }
 
 
 class SerialTransport:
@@ -166,17 +207,67 @@ class SerialManager:
         return get_profile(self.cfg.device_model)
 
     def list_ports(self) -> list[PortInfo]:
+        """USB/serial comports plus stable udev aliases (/dev/elv-alc*)."""
+        import glob
+        import os
+
         ports: list[PortInfo] = []
+        seen: set[str] = set()
+
         for p in list_ports.comports():
+            device = p.device
+            seen.add(os.path.realpath(device))
+            seen.add(device)
             ports.append(
                 PortInfo(
-                    device=p.device,
+                    device=device,
                     description=p.description or "",
                     hwid=p.hwid or "",
                     vid=p.vid,
                     pid=p.pid,
+                    kind="serial",
+                    group=_device_group_name(device),
                 )
             )
+
+        # Stable names from udev/99-elv-alc.rules (symlinks → ttyUSB*/ttyACM*)
+        for path in sorted(glob.glob("/dev/elv-alc*")):
+            if path in seen:
+                continue
+            if not (os.path.islink(path) or os.path.exists(path)):
+                continue
+            try:
+                target = os.path.realpath(path)
+            except OSError:
+                target = path
+            seen.add(path)
+            # Prefer matching VID/PID from the underlying comport if known
+            vid = pid = None
+            hwid = ""
+            desc = f"udev → {os.path.basename(target)}"
+            for existing in ports:
+                try:
+                    if os.path.realpath(existing.device) == target and existing.kind == "serial":
+                        vid, pid = existing.vid, existing.pid
+                        hwid = existing.hwid
+                        if existing.description:
+                            desc = f"udev → {existing.description}"
+                        break
+                except OSError:
+                    continue
+            ports.append(
+                PortInfo(
+                    device=path,
+                    description=desc,
+                    hwid=hwid,
+                    vid=vid,
+                    pid=pid,
+                    kind="udev",
+                    target=target,
+                    group=_device_group_name(path),
+                )
+            )
+
         return ports
 
     def _score_port(self, info: PortInfo) -> int:

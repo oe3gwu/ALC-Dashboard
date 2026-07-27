@@ -308,7 +308,12 @@ def meta() -> dict[str, Any]:
 
 @app.get("/api/ports")
 def ports() -> dict[str, Any]:
-    return {"ports": [p.to_dict() for p in manager.list_ports()]}
+    from app.serial_manager import dialout_status
+
+    return {
+        "ports": [p.to_dict() for p in manager.list_ports()],
+        "dialout": dialout_status(),
+    }
 
 
 @app.get("/api/connection")

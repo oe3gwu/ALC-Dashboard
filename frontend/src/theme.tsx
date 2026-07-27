@@ -93,8 +93,7 @@ export function ThemeProvider({ children }: { children: ReactNode }) {
       themePack,
       setThemePack: (id: ThemePackId) => {
         setThemePackState(id)
-        const def = getThemePack(id).defaultMode
-        if (def) setThemeState(def)
+        setThemeState(getThemePack(id).defaultMode)
       },
       packs: THEME_PACKS,
     }),

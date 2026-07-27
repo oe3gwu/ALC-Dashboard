@@ -126,7 +126,24 @@ export const api = {
       features: Record<string, unknown>
       config: Record<string, unknown>
     }>('/api/meta'),
-  ports: () => req<{ ports: { device: string; description: string; vid: string | null; pid: string | null }[] }>('/api/ports'),
+  ports: () =>
+    req<{
+      ports: {
+        device: string
+        description: string
+        vid: string | null
+        pid: string | null
+        kind?: string
+        target?: string | null
+        group?: string | null
+      }[]
+      dialout?: {
+        user: string
+        group_exists: boolean
+        in_group: boolean
+        group_members: string[]
+      }
+    }>('/api/ports'),
   connection: () => req<ConnectionStatus>('/api/connection'),
   connect: (body: { port?: string | null; simulator?: boolean | null; mock?: boolean | null }) =>
     req('/api/connection/connect', { method: 'POST', body: JSON.stringify(body) }),

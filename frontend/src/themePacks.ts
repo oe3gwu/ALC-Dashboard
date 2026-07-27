@@ -11,8 +11,8 @@ export type ThemePack = {
   /** Optional brand logo in the header (public URL). */
   logoSrc?: string
   logoAlt?: string
-  /** Preferred mode when nothing is stored yet (and when first selecting this pack). */
-  defaultMode?: ThemeMode
+  /** Preferred mode when selecting this pack. */
+  defaultMode: ThemeMode
 }
 
 /** Built-in packs. “ELV” AdminLTE; “SCCH” Password-Pusher lime; “Dracula” / Alucard. */
@@ -22,13 +22,14 @@ export const THEME_PACKS: readonly ThemePack[] = [
     label: 'ELV',
     logoSrc: '/elv-logo.png',
     logoAlt: 'ELV',
+    defaultMode: 'light',
   },
   {
     id: 'scch',
     label: 'SCCH',
     logoSrc: '/scch-logo.png',
     logoAlt: 'SCCH',
-    defaultMode: 'dark',
+    defaultMode: 'light',
   },
   {
     id: 'dracula',

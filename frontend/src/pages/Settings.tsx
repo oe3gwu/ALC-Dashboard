@@ -65,7 +65,22 @@ export function Settings() {
   const [poll, setPoll] = useState(1.5)
   const [msg, setMsg] = useState('')
   const [err, setErr] = useState('')
-  const [ports, setPorts] = useState<{ device: string; description: string; vid: string | null; pid: string | null }[]>([])
+  const [ports, setPorts] = useState<
+    {
+      device: string
+      description: string
+      vid: string | null
+      pid: string | null
+      kind?: string
+      target?: string | null
+      group?: string | null
+    }[]
+  >([])
+  const [dialout, setDialout] = useState<{
+    user: string
+    group_exists: boolean
+    in_group: boolean
+  } | null>(null)
   const [setup, setSetup] = useState<DeviceSetup>({ ...DEFAULT_SETUP })
   const [setupBusy, setSetupBusy] = useState(false)
   const [setupMsg, setSetupMsg] = useState('')
@@ -88,7 +103,19 @@ export function Settings() {
       setPoll(Number(c.poll_interval || 1.5))
       setModel(String(c.device_model || m.device_model || 'alc8500_2_expert'))
     })
-    api.ports().then((p) => setPorts(p.ports)).catch(() => {})
+    api
+      .ports()
+      .then((p) => {
+        setPorts(p.ports)
+        if (p.dialout) {
+          setDialout({
+            user: p.dialout.user,
+            group_exists: p.dialout.group_exists,
+            in_group: p.dialout.in_group,
+          })
+        }
+      })
+      .catch(() => {})
   }, [])
 
   useEffect(() => {
@@ -253,24 +280,94 @@ export function Settings() {
             ))}
           </select>
         </label>
-        <label className="field">
+        <label className="field field-span-2">
           {t('set.serialPort')}
-          <input
-            list="serial-port-suggestions"
-            value={serial}
-            placeholder={t('set.placeholder')}
-            disabled={simulator && !portSet}
-            onChange={(e) => setSerial(e.target.value)}
-          />
-          <datalist id="serial-port-suggestions">
-            {ports.map((p) => (
-              <option
-                key={p.device}
-                value={p.device}
-                label={`${p.description}${p.vid ? ` (${p.vid}:${p.pid})` : ''}`}
-              />
-            ))}
-          </datalist>
+          <div className="port-picker">
+            <select
+              value={serial && ports.some((p) => p.device === serial) ? serial : ''}
+              disabled={simulator && !portSet}
+              onChange={(e) => setSerial(e.target.value)}
+              aria-label={t('set.portPick')}
+            >
+              <option value="">{t('set.portPick')}</option>
+              {ports.some((p) => (p.kind || 'serial') !== 'udev') ? (
+                <optgroup label={t('set.portSerial')}>
+                  {ports
+                    .filter((p) => (p.kind || 'serial') !== 'udev')
+                    .map((p) => (
+                      <option key={p.device} value={p.device}>
+                        {p.device}
+                        {p.description ? ` — ${p.description}` : ''}
+                        {p.group ? ` [${p.group}]` : ''}
+                      </option>
+                    ))}
+                </optgroup>
+              ) : null}
+              {ports.some((p) => p.kind === 'udev') ? (
+                <optgroup label={t('set.portUdev')}>
+                  {ports
+                    .filter((p) => p.kind === 'udev')
+                    .map((p) => (
+                      <option key={p.device} value={p.device}>
+                        {p.device}
+                        {p.description ? ` — ${p.description}` : ''}
+                        {p.group ? ` [${p.group}]` : ''}
+                      </option>
+                    ))}
+                </optgroup>
+              ) : null}
+            </select>
+            {ports.length > 0 ? (
+              <div className="port-chips" role="list">
+                {ports.map((p) => {
+                  const udev = p.kind === 'udev'
+                  const active = serial === p.device
+                  return (
+                    <button
+                      key={p.device}
+                      type="button"
+                      role="listitem"
+                      className={`port-chip${udev ? ' udev' : ' serial'}${active ? ' active' : ''}`}
+                      disabled={simulator && !portSet}
+                      title={[
+                        p.description,
+                        p.target ? `→ ${p.target}` : '',
+                        p.group ? `group=${p.group}` : '',
+                        p.vid ? `${p.vid}:${p.pid}` : '',
+                      ]
+                        .filter(Boolean)
+                        .join(' · ')}
+                      onClick={() => setSerial(p.device)}
+                    >
+                      <span className="port-chip-path">{p.device}</span>
+                      {p.group ? <span className="port-chip-meta">{p.group}</span> : null}
+                    </button>
+                  )
+                })}
+              </div>
+            ) : null}
+            <input
+              className="port-manual"
+              value={serial}
+              placeholder={t('set.placeholder')}
+              disabled={simulator && !portSet}
+              onChange={(e) => setSerial(e.target.value)}
+            />
+          </div>
+          <span className="field-hint">{t('set.serialPortHint')}</span>
+          {dialout ? (
+            <span
+              className={`field-hint dialout-hint${
+                !dialout.group_exists ? ' warn' : dialout.in_group ? ' ok' : ' warn'
+              }`}
+            >
+              {!dialout.group_exists
+                ? t('set.dialoutGroupMissing')
+                : dialout.in_group
+                  ? t('set.dialoutOk').replaceAll('{user}', dialout.user)
+                  : t('set.dialoutMissing').replaceAll('{user}', dialout.user)}
+            </span>
+          ) : null}
         </label>
         <label className="field">
           {t('set.simulator')}

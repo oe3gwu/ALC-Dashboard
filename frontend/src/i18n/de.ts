@@ -224,11 +224,19 @@ export const de = {
   'set.device': 'Gerät',
   'set.deviceDisabled': 'nicht verfügbar',
   'set.serialPort': 'Serieller Port',
+  'set.serialPortHint': 'Leer = Auto-Detect. Udev-Aliase (/dev/elv-alc*) sind stabile Namen.',
+  'set.portSerial': 'Geräte',
+  'set.portUdev': 'Udev (stabil)',
+  'set.portPick': 'Port wählen…',
+  'set.dialoutOk': 'Dienstnutzer {user} ist in der Gruppe dialout.',
+  'set.dialoutMissing':
+    'Dienstnutzer {user} ist nicht in der Gruppe dialout — Seriellzugriff kann scheitern. Installer erneut ausführen oder: sudo usermod -aG dialout {user}',
+  'set.dialoutGroupMissing': 'Systemgruppe dialout fehlt.',
   'set.simulator': 'Simulator',
   'set.simulatorHint': 'Startet den Simulator des gewählten Geräts (Port muss leer sein). Prozesse laufen ×10 beschleunigt; Phasen enden nach wenigen Minuten.',
   'set.simulatorNeedsEmptyPort': 'Simulator nur möglich, wenn kein Port eingetragen ist.',
   'set.poll': 'Abfrageintervall (s)',
-  'set.placeholder': '/dev/ttyUSB0, /dev/ttyS0 oder leer',
+  'set.placeholder': '/dev/elv-alc, /dev/ttyUSB0 oder leer',
   'set.saved': 'config.yaml gespeichert',
   'set.connect': 'Verbinden',
   'set.connected': 'Verbunden',
@@ -261,7 +269,8 @@ export const de = {
   'set.themeMode': 'Modus',
   'set.themeModeLight': 'Hell',
   'set.themeModeDark': 'Dunkel',
-  'set.themeModeHint': 'Auch über den Schalter in der Kopfzeile umschaltbar. Dracula startet standardmäßig dunkel.',
+  'set.themeModeHint':
+    'Auch über den Schalter in der Kopfzeile umschaltbar. Beim Theme-Wechsel: ELV/SCCH → hell, Dracula → dunkel.',
 
   'help.title': 'Bedienungsanleitung',
 
