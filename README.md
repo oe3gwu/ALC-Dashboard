@@ -87,19 +87,19 @@ Protocol PDFs: [8500-2 chapter 18](https://media.elv.com/file/59066_69326_alc850
 
 ## AI install prompts
 
-Paste one of these into **Cursor**, **OpenCode**, or a similar agent. The agent runs the install for you — no source changes, install/run only.
+Paste one of these into **Cursor**, **OpenCode**, or a similar agent. The agent **always** refreshes `main` from GitHub and runs a full install/reinstall (rebuild + restart) — even if an older install already exists.
 
 ### Systemd (`/opt/alc`)
 
 Autostart on boot via `elv-alc-dashboard.service`.
 
-→ Copy from [docs/ai-install-prompt.md](docs/ai-install-prompt.md)
+→ Copy from [installer/ai-install-prompt.md](installer/ai-install-prompt.md)
 
 ### Docker Compose
 
 Build and run the container from the repo (`docker compose up`).
 
-→ Copy from [docs/ai-install-prompt-docker.md](docs/ai-install-prompt-docker.md)
+→ Copy from [installer/ai-install-prompt-docker.md](installer/ai-install-prompt-docker.md)
 
 ---
 
@@ -263,7 +263,8 @@ ELV-ALC-Dashboard/
 ├── backend/app/          # FastAPI, devices/, protocol, serial, simulators, services
 ├── frontend/             # React UI (Vite)
 ├── data/                 # logger archive, battery-db.json
-├── docs/                 # protocol, feature matrix, screenshots, AI install prompts
+├── docs/                 # protocol, feature matrix, screenshots
+├── installer/            # AI install prompts (systemd + Docker)
 ├── scripts/              # run.sh, install-systemd.sh, uninstall-systemd.sh
 ├── systemd/              # elv-alc-dashboard.service
 ├── udev/                 # 99-elv-alc.rules
