@@ -414,12 +414,28 @@ body {
 a { color: var(--accent); text-decoration: none; }
 a:hover { text-decoration: underline; }
 
-/* SCCH dark: titles/links white on near-black (Password Pusher); hover → lime. */
+/* SCCH dark: links same grey as section titles (e.g. Einstellungen → Verbindung); hover → lime. */
 [data-theme-pack="scch"][data-theme="dark"] a {
-  color: #ffffff;
+  color: var(--muted);
 }
 [data-theme-pack="scch"][data-theme="dark"] a:hover {
   color: #00f300;
+}
+/* SCCH light: content links/titles use muted on white; sidebar keeps chrome grey. */
+[data-theme-pack="scch"][data-theme="light"] a {
+  color: var(--muted);
+}
+[data-theme-pack="scch"][data-theme="light"] a:hover {
+  color: #00f300;
+}
+[data-theme-pack="scch"][data-theme="light"] .nav a {
+  color: var(--nav-link);
+}
+[data-theme-pack="scch"][data-theme="light"] .nav a:hover {
+  color: #ffffff;
+}
+[data-theme-pack="scch"][data-theme="light"] .nav a.active {
+  color: var(--nav-active-color);
 }
 
 .app {
