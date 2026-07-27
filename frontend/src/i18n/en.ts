@@ -259,11 +259,11 @@ export const en: Record<MessageKey, string> = {
   'set.appearance': 'Appearance',
   'set.appearanceLead': 'Color palette and light/dark mode for the UI.',
   'set.themePack': 'Theme',
-  'set.themePackHint': 'UI color palette (ELV, SCCH, or Jerrec).',
+  'set.themePackHint': 'UI color palette (ELV, SCCH, or Dracula).',
   'set.themeMode': 'Mode',
   'set.themeModeLight': 'Light',
   'set.themeModeDark': 'Dark',
-  'set.themeModeHint': 'Also switchable via the header control.',
+  'set.themeModeHint': 'Also switchable via the header control. Dracula defaults to dark.',
 
   'help.title': 'User guide',
 

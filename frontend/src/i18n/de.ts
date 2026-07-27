@@ -257,11 +257,11 @@ export const de = {
   'set.appearance': 'Erscheinungsbild',
   'set.appearanceLead': 'Farbpalette und Hell-/Dunkelmodus für die Oberfläche.',
   'set.themePack': 'Theme',
-  'set.themePackHint': 'Farbpalette der Oberfläche (ELV, SCCH oder Jerrec).',
+  'set.themePackHint': 'Farbpalette der Oberfläche (ELV, SCCH oder Dracula).',
   'set.themeMode': 'Modus',
   'set.themeModeLight': 'Hell',
   'set.themeModeDark': 'Dunkel',
-  'set.themeModeHint': 'Auch über den Schalter in der Kopfzeile umschaltbar.',
+  'set.themeModeHint': 'Auch über den Schalter in der Kopfzeile umschaltbar. Dracula startet standardmäßig dunkel.',
 
   'help.title': 'Bedienungsanleitung',
 

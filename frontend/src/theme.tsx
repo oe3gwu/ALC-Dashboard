@@ -2,11 +2,14 @@ import { createContext, useContext, useEffect, useMemo, useState, type ReactNode
 import {
   DEFAULT_THEME_PACK,
   THEME_PACKS,
-  isThemePackId,
+  getThemePack,
+  normalizeThemePackId,
+  type ThemeMode,
   type ThemePackId,
 } from './themePacks'
 
-export type ThemeMode = 'dark' | 'light'
+/** Re-export for existing imports. */
+export type { ThemeMode }
 /** @deprecated Use ThemeMode — kept for existing imports. */
 export type Theme = ThemeMode
 
@@ -37,20 +40,20 @@ function detectOsTheme(): ThemeMode {
   return 'light'
 }
 
-function readStoredMode(): ThemeMode {
+function readStoredMode(pack: ThemePackId): ThemeMode {
   try {
     const v = localStorage.getItem(MODE_KEY)
     if (v === 'light' || v === 'dark') return v
   } catch {
     /* ignore */
   }
-  return detectOsTheme()
+  return getThemePack(pack).defaultMode ?? detectOsTheme()
 }
 
 function readStoredPack(): ThemePackId {
   try {
-    const v = localStorage.getItem(PACK_KEY)
-    if (isThemePackId(v)) return v
+    const v = normalizeThemePackId(localStorage.getItem(PACK_KEY))
+    if (v) return v
   } catch {
     /* ignore */
   }
@@ -64,13 +67,13 @@ function applyAppearance(pack: ThemePackId, mode: ThemeMode) {
 }
 
 export function ThemeProvider({ children }: { children: ReactNode }) {
+  const [themePack, setThemePackState] = useState<ThemePackId>(() => readStoredPack())
   const [theme, setThemeState] = useState<ThemeMode>(() => {
-    const mode = readStoredMode()
     const pack = readStoredPack()
+    const mode = readStoredMode(pack)
     applyAppearance(pack, mode)
     return mode
   })
-  const [themePack, setThemePackState] = useState<ThemePackId>(() => readStoredPack())
 
   useEffect(() => {
     applyAppearance(themePack, theme)
@@ -88,7 +91,11 @@ export function ThemeProvider({ children }: { children: ReactNode }) {
       setTheme: setThemeState,
       toggle: () => setThemeState((t) => (t === 'dark' ? 'light' : 'dark')),
       themePack,
-      setThemePack: setThemePackState,
+      setThemePack: (id: ThemePackId) => {
+        setThemePackState(id)
+        const def = getThemePack(id).defaultMode
+        if (def) setThemeState(def)
+      },
       packs: THEME_PACKS,
     }),
     [theme, themePack],

@@ -259,11 +259,11 @@
 }
 
 /*
- * Theme pack “Jerrec” — Dracula-trimmed (GNOME/KDE-style palette).
- * Classic Dracula tokens: https://draculatheme.com/spec
- * Light ≈ Alucard-style: fg-as-bg with dark chrome (header/nav).
+ * Theme pack “Dracula” — full Dracula / Alucard UI (KDE-style token coverage).
+ * Spec: https://github.com/dracula/dracula-theme · https://draculatheme.com/spec
+ * Dark = Dracula · Light = Alucard (dark chrome #1f1f1f + official accents). Pack defaults to dark.
  */
-[data-theme-pack="jerrec"][data-theme="dark"] {
+[data-theme-pack="dracula"][data-theme="dark"] {
   --bg0: #282a36;
   --bg1: #21222c;
   --bg2: #44475a;
@@ -274,9 +274,9 @@
   --accent-dim: #bd93f9;
   --warn: #ffb86c;
   --danger: #ff5555;
-  --danger-solid: #e03e3e;
-  --danger-solid-dim: #c53030;
-  --ok: #00a65a;
+  --danger-solid: #ff5555;
+  --danger-solid-dim: #e64545;
+  --ok: #50fa7b;
   --font: "Source Sans Pro", "Helvetica Neue", Helvetica, Arial, sans-serif;
   --mono: "IBM Plex Mono", ui-monospace, monospace;
   --sidebar-bg: #21222c;
@@ -287,7 +287,7 @@
   --chart-bg: #191a21;
   --chart-u: #bd93f9;
   --chart-i: #ffb86c;
-  --chart-c: #00a65a;
+  --chart-c: #50fa7b;
   --input-bg: #282a36;
   --nav-link: #f8f8f2;
   --nav-hover-bg: #44475a;
@@ -298,16 +298,16 @@
   --btn-border: #6272a4;
   --danger-btn-bg: rgba(255, 85, 85, 0.16);
   --danger-btn-border: rgba(255, 85, 85, 0.5);
-  --danger-btn-text: #ff6e6e;
+  --danger-btn-text: #ff5555;
   --toast-warn-bg: rgba(255, 184, 108, 0.14);
   --toast-warn-border: rgba(255, 184, 108, 0.45);
   --toast-warn-text: #ffb86c;
   --toast-err-bg: rgba(255, 85, 85, 0.14);
   --toast-err-border: rgba(255, 85, 85, 0.45);
-  --toast-err-text: #ff6e6e;
+  --toast-err-text: #ff5555;
   --toast-ok-bg: rgba(80, 250, 123, 0.12);
   --toast-ok-border: rgba(80, 250, 123, 0.4);
-  --toast-ok-text: #69ff94;
+  --toast-ok-text: #50fa7b;
   --modal-backdrop: rgba(25, 26, 33, 0.72);
   --live-lost-backdrop: rgba(68, 71, 90, 0.7);
   --switch-track: rgba(0, 0, 0, 0.35);
@@ -315,7 +315,7 @@
   --switch-fg: #f8f8f2;
   --header-bg: #21222c;
   --header-brand-bg: #191a21;
-  --header-border: #21222c;
+  --header-border: #191a21;
   --brand-fg: #f8f8f2;
   --brand-logo-height: 2.85rem;
   --topbar-bg: var(--header-bg);
@@ -329,58 +329,58 @@
   color-scheme: dark;
 }
 
-/* Light: Dracula accents + previous cool lavender/white surfaces (no eggshell). */
-[data-theme-pack="jerrec"][data-theme="light"] {
-  --bg0: #f3eef8;
+/* Light = Alucard: dark chrome (#1f1f1f) + official Alucard surfaces/accents. */
+[data-theme-pack="dracula"][data-theme="light"] {
+  --bg0: #fffbeb;
   --bg1: #ffffff;
-  --bg2: #ebe4f4;
-  --line: #d8cfe6;
-  --text: #2a2238;
-  --muted: #6a5f7a;
-  --accent: #ff79c6;
-  --accent-dim: #bd93f9;
-  --warn: #ffb86c;
-  --danger: #ff5555;
-  --danger-solid: #e03e3e;
-  --danger-solid-dim: #c53030;
-  --ok: #00a65a;
-  --sidebar-bg: #21222c;
-  --sidebar-line: #191a21;
+  --bg2: #cfcfde;
+  --line: #cfcfde;
+  --text: #1f1f1f;
+  --muted: #6c664b;
+  --accent: #a3144d;
+  --accent-dim: #644ac9;
+  --warn: #a34d14;
+  --danger: #cb3a2a;
+  --danger-solid: #cb3a2a;
+  --danger-solid-dim: #a82f22;
+  --ok: #14710a;
+  --sidebar-bg: #1f1f1f;
+  --sidebar-line: #141414;
   --channel-bg: #ffffff;
   --panel-bg: #ffffff;
-  --metric-bg: #f6f1fa;
-  --chart-bg: #f6f1fa;
-  --chart-u: #bd93f9;
-  --chart-i: #e09a50;
-  --chart-c: #00a65a;
+  --metric-bg: #fffbeb;
+  --chart-bg: #fff8e7;
+  --chart-u: #644ac9;
+  --chart-i: #a34d14;
+  --chart-c: #14710a;
   --input-bg: #ffffff;
   --nav-link: #f8f8f2;
-  --nav-hover-bg: #44475a;
-  --nav-active-bg: #44475a;
+  --nav-hover-bg: #2e2e2e;
+  --nav-active-bg: #2e2e2e;
   --nav-active-color: #ff79c6;
-  --primary-text: #282a36;
-  --btn-bg: #f0eaf6;
-  --btn-border: #d8cfe6;
-  --danger-btn-bg: rgba(255, 85, 85, 0.1);
-  --danger-btn-border: rgba(224, 62, 62, 0.4);
+  --primary-text: #ffffff;
+  --btn-bg: #fffbeb;
+  --btn-border: #cfcfde;
+  --danger-btn-bg: rgba(203, 58, 42, 0.1);
+  --danger-btn-border: rgba(203, 58, 42, 0.4);
   --danger-btn-text: #cb3a2a;
-  --toast-warn-bg: rgba(255, 184, 108, 0.14);
-  --toast-warn-border: rgba(255, 184, 108, 0.4);
-  --toast-warn-text: #b36a20;
-  --toast-err-bg: rgba(255, 85, 85, 0.1);
-  --toast-err-border: rgba(224, 62, 62, 0.4);
+  --toast-warn-bg: rgba(163, 77, 20, 0.12);
+  --toast-warn-border: rgba(163, 77, 20, 0.4);
+  --toast-warn-text: #a34d14;
+  --toast-err-bg: rgba(203, 58, 42, 0.1);
+  --toast-err-border: rgba(203, 58, 42, 0.4);
   --toast-err-text: #cb3a2a;
-  --toast-ok-bg: rgba(80, 250, 123, 0.12);
-  --toast-ok-border: rgba(45, 184, 90, 0.4);
-  --toast-ok-text: #1f8a42;
-  --modal-backdrop: rgba(40, 42, 54, 0.42);
-  --live-lost-backdrop: rgba(80, 68, 104, 0.5);
-  --switch-track: rgba(40, 42, 54, 0.28);
+  --toast-ok-bg: rgba(20, 113, 10, 0.1);
+  --toast-ok-border: rgba(20, 113, 10, 0.35);
+  --toast-ok-text: #14710a;
+  --modal-backdrop: rgba(31, 31, 31, 0.45);
+  --live-lost-backdrop: rgba(108, 102, 75, 0.45);
+  --switch-track: rgba(31, 31, 31, 0.28);
   --switch-knob: #ffffff;
   --switch-fg: #f8f8f2;
-  --header-bg: #21222c;
-  --header-brand-bg: #191a21;
-  --header-border: #21222c;
+  --header-bg: #1f1f1f;
+  --header-brand-bg: #1f1f1f;
+  --header-border: #1f1f1f;
   --brand-fg: #f8f8f2;
   --brand-logo-height: 2.85rem;
   --topbar-bg: var(--header-bg);
@@ -390,7 +390,7 @@
   --header-height: 3.25rem;
   --channel-edge: var(--accent);
   --channel-edge-active: var(--danger);
-  --on-danger-text: #f8f8f2;
+  --on-danger-text: #ffffff;
   color-scheme: light;
 }
 
