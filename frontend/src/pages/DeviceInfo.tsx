@@ -26,23 +26,31 @@ export function DeviceInfo() {
     <>
       <h1>{t('dev.title')}</h1>
       {err && <div className="toast error">{err}</div>}
-      <div className="panel stack">
+      <div className="panel stack dev-page">
         {info ? (
           <>
-            <div>
-              {t('dev.device')} <strong>{String(info.device_label ?? '—')}</strong>
-            </div>
-            <div>
-              {t('dev.port')}{' '}
-              <strong>
-                {isSim ? String(info.status_label || t('dev.simulator')) : String(info.port ?? '—')}
-              </strong>
-            </div>
-            <div>
-              {t('dev.serial')} <strong>{String(info.serial_number ?? '—')}</strong>
-            </div>
-            <div>
-              {t('dev.firmware')} <strong>{String(info.firmware ?? '—')}</strong>
+            <div className="form-grid">
+              <label className="field">
+                {t('dev.device')}
+                <input type="text" readOnly tabIndex={-1} value={String(info.device_label ?? '—')} />
+              </label>
+              <label className="field">
+                {t('dev.port')}
+                <input
+                  type="text"
+                  readOnly
+                  tabIndex={-1}
+                  value={isSim ? String(info.status_label || t('dev.simulator')) : String(info.port ?? '—')}
+                />
+              </label>
+              <label className="field">
+                {t('dev.serial')}
+                <input type="text" readOnly tabIndex={-1} value={String(info.serial_number ?? '—')} />
+              </label>
+              <label className="field">
+                {t('dev.firmware')}
+                <input type="text" readOnly tabIndex={-1} value={String(info.firmware ?? '—')} />
+              </label>
             </div>
             {info.note && <div className="toast">{String(info.note)}</div>}
             <div className="toast">{t('dev.riNote')}</div>

@@ -11,6 +11,12 @@
     <meta name="apple-mobile-web-app-title" content="ALC Dashboard" />
     <link rel="apple-touch-icon" href="/pwa-192.png" />
     <title>ELV ALC Dashboard</title>
+    <style>
+      :root { --type-body: 0.8rem; }
+      html { font-size: clamp(15px, 0.45vw + 9px, 24px); }
+      html, body { height: 100%; margin: 0; }
+      body { font-size: var(--type-body); line-height: 1.4; }
+    </style>
     <script>
       try {
         var t = localStorage.getItem('elv-alc-theme')

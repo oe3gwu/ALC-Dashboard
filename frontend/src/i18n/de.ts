@@ -202,11 +202,11 @@ export const de = {
   'log.colSaved': 'Gespeichert',
 
   'dev.title': 'Geräteinfo',
-  'dev.port': 'Port:',
+  'dev.port': 'Port',
   'dev.simulator': '(Simulator)',
-  'dev.device': 'Gerät:',
-  'dev.serial': 'Seriennummer:',
-  'dev.firmware': 'Firmware:',
+  'dev.device': 'Gerät',
+  'dev.serial': 'Seriennummer',
+  'dev.firmware': 'Firmware',
   'dev.riNote':
     'Hinweis: Die Innenwiderstandsmessung (Ri) ist nur am Gerät mit Vierleiter-Kabel verfügbar — kein USB-Befehl in der Protokolldokumentation.',
 
@@ -228,7 +228,7 @@ export const de = {
   'set.simulatorHint': 'Startet den Simulator des gewählten Geräts (Port muss leer sein). Prozesse laufen ×10 beschleunigt; Phasen enden nach wenigen Minuten.',
   'set.simulatorNeedsEmptyPort': 'Simulator nur möglich, wenn kein Port eingetragen ist.',
   'set.poll': 'Abfrageintervall (s)',
-  'set.placeholder': '/dev/elv-alc, /dev/ttyUSB0 oder leer',
+  'set.placeholder': '/dev/elv-alc',
   'set.saved': 'config.yaml gespeichert',
   'set.connect': 'Verbinden',
   'set.connected': 'Verbunden',

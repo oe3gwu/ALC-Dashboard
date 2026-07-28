@@ -204,11 +204,11 @@ export const en: Record<MessageKey, string> = {
   'log.colSaved': 'Saved',
 
   'dev.title': 'Device info',
-  'dev.port': 'Port:',
+  'dev.port': 'Port',
   'dev.simulator': '(Simulator)',
-  'dev.device': 'Device:',
-  'dev.serial': 'Serial number:',
-  'dev.firmware': 'Firmware:',
+  'dev.device': 'Device',
+  'dev.serial': 'Serial number',
+  'dev.firmware': 'Firmware',
   'dev.riNote':
     'Note: Internal resistance (Ri) measurement is only available on the device with a four-wire cable — no USB command in the protocol docs.',
 
@@ -230,7 +230,7 @@ export const en: Record<MessageKey, string> = {
   'set.simulatorHint': 'Starts the simulator for the selected device (port must be empty). Processes run at ×10 speed; phases finish within a few minutes.',
   'set.simulatorNeedsEmptyPort': 'Simulator is only available when no port is set.',
   'set.poll': 'Poll interval (s)',
-  'set.placeholder': '/dev/elv-alc, /dev/ttyUSB0 or empty',
+  'set.placeholder': '/dev/elv-alc',
   'set.saved': 'config.yaml saved',
   'set.connect': 'Connect',
   'set.connected': 'Connected',

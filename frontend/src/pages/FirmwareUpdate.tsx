@@ -31,19 +31,19 @@ export function FirmwareUpdate() {
 
   if (err) {
     return (
-      <div className="fw-page">
+      <>
         <h1>{t('fw.title')}</h1>
         <div className="toast error">{err}</div>
-      </div>
+      </>
     )
   }
 
   if (!guide) {
     return (
-      <div className="fw-page">
+      <>
         <h1>{t('fw.title')}</h1>
         <p className="lead">{t('common.loading')}</p>
-      </div>
+      </>
     )
   }
 
@@ -51,11 +51,9 @@ export function FirmwareUpdate() {
   const supported = capabilities.firmware_guided && guide.supported !== false
 
   return (
-    <div className="fw-page">
-      <header className="fw-header">
-        <h1>{t('fw.title')}</h1>
-        {label && <p className="fw-device">{label}</p>}
-      </header>
+    <>
+      <h1>{t('fw.title')}</h1>
+      {label && <p className="fw-device">{label}</p>}
 
       <div className="toast error" role="alert">
         {t('fw.noFlash')}
@@ -66,7 +64,7 @@ export function FirmwareUpdate() {
           {t('fw.notSupported')}
         </div>
       ) : (
-        <>
+        <div className="fw-page">
           {guide.safety && (
             <div className="toast" role="status">
               {guide.safety}
@@ -74,12 +72,12 @@ export function FirmwareUpdate() {
           )}
 
           <section className="panel fw-section">
-            <h2>{t('fw.sectionFile')}</h2>
+            <h2 className="start-section-title">{t('fw.sectionFile')}</h2>
             <p className="fw-mono">{guide.filename_hint}</p>
           </section>
 
           <section className="panel fw-section">
-            <h2>{t('fw.sectionSteps')}</h2>
+            <h2 className="start-section-title">{t('fw.sectionSteps')}</h2>
             <ol className="fw-steps">
               {guide.steps.map((s) => (
                 <li key={s}>{s}</li>
@@ -88,13 +86,13 @@ export function FirmwareUpdate() {
           </section>
 
           <section className="panel fw-section">
-            <h2>{t('fw.sectionTool')}</h2>
+            <h2 className="start-section-title">{t('fw.sectionTool')}</h2>
             <p className="fw-body">{guide.tool_hint}</p>
           </section>
 
           {guide.notes.length > 0 && (
             <section className="panel fw-section">
-              <h2>{t('fw.sectionNotes')}</h2>
+              <h2 className="start-section-title">{t('fw.sectionNotes')}</h2>
               <ul className="fw-notes">
                 {guide.notes.map((n) => (
                   <li key={n}>{n}</li>
@@ -102,8 +100,8 @@ export function FirmwareUpdate() {
               </ul>
             </section>
           )}
-        </>
+        </div>
       )}
-    </div>
+    </>
   )
 }
