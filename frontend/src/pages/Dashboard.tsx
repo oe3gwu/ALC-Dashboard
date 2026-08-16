@@ -102,6 +102,10 @@ export function Dashboard() {
   const { t } = useLocale()
   const channels = Array.from({ length: capabilities.channel_count }, (_, i) => i)
   const [showOffline, setShowOffline] = useState(false)
+  const [shutdownOpen, setShutdownOpen] = useState(false)
+  const [shutdownBusy, setShutdownBusy] = useState(false)
+  const [shutdownMsg, setShutdownMsg] = useState('')
+  const [shutdownErr, setShutdownErr] = useState('')
 
   useEffect(() => {
     if (!connection || connection.connected) {
@@ -112,18 +116,55 @@ export function Dashboard() {
     return () => window.clearTimeout(id)
   }, [connection])
 
+  const doShutdown = async () => {
+    setShutdownErr('')
+    setShutdownBusy(true)
+    try {
+      await api.shutdownHost()
+      setShutdownMsg(t('dash.shutdownOk'))
+      setShutdownOpen(false)
+    } catch (e) {
+      setShutdownErr(String((e as Error).message || e))
+    } finally {
+      setShutdownBusy(false)
+    }
+  }
+
   return (
     <div className="page-channels">
       <div className="page-channels-head">
         <h1>{t('dash.title')}</h1>
-        <Link className="btn primary" to="/start">
-          {t('dash.startProcess')}
-        </Link>
+        <div className="page-channels-head-actions">
+          <Link className="btn primary" to="/start">
+            {t('dash.startProcess')}
+          </Link>
+          <button
+            type="button"
+            className="primary-danger"
+            onClick={() => {
+              setShutdownErr('')
+              setShutdownOpen(true)
+            }}
+            disabled={shutdownBusy}
+          >
+            {t('dash.shutdown')}
+          </button>
+        </div>
       </div>
 
       {showOffline && (
         <div className="toast">
           {t('dash.notConnected')} <Link to="/settings">{t('dash.toSettings')}</Link> {t('dash.orSimulator')}
+        </div>
+      )}
+      {shutdownMsg && (
+        <div className="toast ok" role="status">
+          {shutdownMsg}
+        </div>
+      )}
+      {shutdownErr && !shutdownOpen && (
+        <div className="toast error" role="alert">
+          {shutdownErr}
         </div>
       )}
 
@@ -132,6 +173,41 @@ export function Dashboard() {
           <ChannelCard key={ch} ch={ch} />
         ))}
       </div>
+
+      {shutdownOpen && (
+        <div
+          className="modal-backdrop"
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="shutdown-confirm-title"
+          onClick={() => !shutdownBusy && setShutdownOpen(false)}
+        >
+          <div className="modal" onClick={(ev) => ev.stopPropagation()}>
+            <h2 id="shutdown-confirm-title">{t('dash.shutdownTitle')}</h2>
+            <p className="lead" style={{ marginTop: 0 }}>
+              {t('dash.shutdownLead')}
+            </p>
+            {shutdownErr && (
+              <div className="toast error" role="alert">
+                {shutdownErr}
+              </div>
+            )}
+            <div className="row">
+              <button type="button" onClick={() => setShutdownOpen(false)} disabled={shutdownBusy}>
+                {t('common.cancel')}
+              </button>
+              <button
+                type="button"
+                className="primary-danger"
+                onClick={() => void doShutdown()}
+                disabled={shutdownBusy}
+              >
+                {t('dash.shutdownConfirm')}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   )
 }

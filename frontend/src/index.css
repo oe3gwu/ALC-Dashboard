@@ -837,6 +837,12 @@ h2 {
   margin: 0;
   font-size: var(--type-title);
 }
+.page-channels-head-actions {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  flex-shrink: 0;
+}
 .grid-channels {
   flex: 1;
   min-height: 0;

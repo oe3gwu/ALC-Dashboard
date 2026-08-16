@@ -85,6 +85,10 @@ class DeviceJIn(BaseModel):
     contrast: int = 8
 
 
+class ConfirmAction(BaseModel):
+    confirm: bool = False
+
+
 class ConfigUpdate(BaseModel):
     serial_port: str | None = None
     device_model: str | None = None

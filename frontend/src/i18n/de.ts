@@ -67,6 +67,12 @@ export const de = {
 
   'dash.title': 'Kanäle',
   'dash.startProcess': 'Vorgang starten',
+  'dash.shutdown': 'Herunterfahren',
+  'dash.shutdownTitle': 'Rechner herunterfahren?',
+  'dash.shutdownLead':
+    'Der Rechner, auf dem das Dashboard läuft, wird ausgeschaltet. Speichern Sie Logger-Daten vorher. Offene Browser-Sitzungen enden.',
+  'dash.shutdownConfirm': 'Herunterfahren',
+  'dash.shutdownOk': 'Herunterfahren wurde ausgelöst…',
   'dash.notConnected': 'Nicht verbunden.',
   'dash.toSettings': 'In den Einstellungen verbinden',
   'dash.orSimulator': '— oder den Simulator aktivieren.',

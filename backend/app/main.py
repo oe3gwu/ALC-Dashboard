@@ -17,6 +17,7 @@ from app.api.schemas import (
     BatteryDbIn,
     ChannelParamsIn,
     ConfigUpdate,
+    ConfirmAction,
     ConnectRequest,
     DeviceGIn,
     DeviceHIn,
@@ -41,6 +42,7 @@ from app.protocol.models import (
 from app.serial_manager import SerialManager
 from app.services.battery_db_archive import SLOT_COUNT, BatteryDbArchive, entry_to_model
 from app.services.firmware_guide import build_firmware_guide
+from app.services.host_power import resolve_poweroff_argv, spawn_poweroff
 from app.services.live_series import LiveSeriesStore
 from app.services.logger_archive import LoggerArchive
 from app.services.pdf_export import build_logger_pdf, write_pdf
@@ -430,6 +432,21 @@ def disconnect() -> dict[str, Any]:
     manager.disconnect()
     manager.last_error = None
     return manager.status()
+
+
+@app.post("/api/system/shutdown")
+async def system_shutdown(body: ConfirmAction) -> dict[str, Any]:
+    """Power off the host that runs this dashboard (not the ALC)."""
+    if not body.confirm:
+        raise HTTPException(400, "Bestätigung erforderlich (confirm=true)")
+    try:
+        argv = resolve_poweroff_argv()
+    except FileNotFoundError as exc:
+        raise HTTPException(500, str(exc)) from exc
+    loop = asyncio.get_running_loop()
+    loop.call_later(0.8, lambda: spawn_poweroff(argv))
+    log.warning("Host shutdown requested; poweroff in 0.8s (%s)", " ".join(argv))
+    return {"ok": True}
 
 
 @app.get("/api/config")

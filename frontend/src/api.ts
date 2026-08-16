@@ -280,6 +280,8 @@ export const api = {
       supported?: boolean
     }>('/api/firmware/guide'),
   updateConfig: (body: Record<string, unknown>) => req('/api/config', { method: 'PUT', body: JSON.stringify(body) }),
+  shutdownHost: () =>
+    req<{ ok: boolean }>('/api/system/shutdown', { method: 'POST', body: JSON.stringify({ confirm: true }) }),
 }
 
 export function liveSocket(onMessage: (data: LivePayload) => void) {

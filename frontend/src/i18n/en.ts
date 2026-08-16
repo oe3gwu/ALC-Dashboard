@@ -69,6 +69,12 @@ export const en: Record<MessageKey, string> = {
 
   'dash.title': 'Channels',
   'dash.startProcess': 'Start process',
+  'dash.shutdown': 'Shut down',
+  'dash.shutdownTitle': 'Shut down this computer?',
+  'dash.shutdownLead':
+    'The machine running the dashboard will power off. Archive logger data first. Open browser sessions will end.',
+  'dash.shutdownConfirm': 'Shut down',
+  'dash.shutdownOk': 'Shutdown has been requested…',
   'dash.notConnected': 'Not connected.',
   'dash.toSettings': 'Connect in Settings',
   'dash.orSimulator': '— or enable the simulator.',
