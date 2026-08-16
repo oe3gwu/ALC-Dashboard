@@ -30,7 +30,7 @@ export const en: Record<MessageKey, string> = {
   'sidebar.battery': 'Battery',
   'sidebar.creditAuthor': 'Rainer H. Weninger (OE3GWU)',
   'sidebar.creditLicense': 'Apache 2.0 + Commons Clause',
-  'sidebar.creditAi': 'with Cursor',
+  'sidebar.creditAi': 'with SpaceX Cursor',
 
   'stage.idle': 'Idle',
   'stage.pause': 'Pause/Wait',

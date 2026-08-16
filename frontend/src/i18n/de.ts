@@ -28,7 +28,7 @@ export const de = {
   'sidebar.battery': 'Akku',
   'sidebar.creditAuthor': 'Rainer H. Weninger (OE3GWU)',
   'sidebar.creditLicense': 'Apache 2.0 + Commons Clause',
-  'sidebar.creditAi': 'mit Cursor',
+  'sidebar.creditAi': 'mit SpaceX Cursor',
 
   'stage.idle': 'Leerlauf',
   'stage.pause': 'Pause/Warten',
