@@ -82,12 +82,15 @@ def test_age_prune_keeps_recent_tail():
     t0 = 2_000_000
     store.ingest([_ch(False)], [_m(3.0, 100, 1)], now_ms=t0)
     store.ingest([_ch(False)], [_m(3.1, 100, 2)], now_ms=t0 + 1000)
-    later = t0 + (MAX_AGE_S * 1000) + 500
+    later = t0 + (MAX_AGE_S * 1000) + 1500
     store.ingest([_ch(False)], [_m(3.2, 100, 3)], now_ms=later)
-    pts = store.snapshot(now_ms=later)["channels"]["0"]["points"]
+    snap = store.snapshot(now_ms=later)["channels"]["0"]
+    pts = snap["points"]
     assert len(pts) == 1
     assert pts[0]["v"] == 3.2
-    assert pts[0]["t"] == (later - t0) / 1000.0
+    # Gap > 6 h dropped the old series; a still-running channel starts a new t0.
+    assert snap["t0"] == later
+    assert pts[0]["t"] == 0.0
 
 
 def test_maxlen_caps_at_six_hours_of_1hz():
