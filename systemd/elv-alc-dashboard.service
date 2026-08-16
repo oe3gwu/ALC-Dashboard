@@ -6,7 +6,7 @@ Wants=network-online.target
 
 [Service]
 Type=simple
-User=alc
+User=elv-alc
 Group=dialout
 WorkingDirectory=/opt/alc
 Environment=PYTHONPATH=/opt/alc/backend

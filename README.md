@@ -163,7 +163,7 @@ cd ELV-ALC-Dashboard
 sudo ./scripts/install-systemd.sh
 ```
 
-The script creates user `alc` (`dialout`), installs to `/opt/alc`, builds the frontend, installs udev + unit + polkit (UI **Herunterfahren**), then enables and restarts the service. Existing installs that still use `elv-alc` are migrated to `alc` and the old user is removed. UI: `http://<IP>:8080` (listens on `0.0.0.0:8080`).
+The script creates user `elv-alc` (`dialout`), installs to `/opt/alc`, builds the frontend, installs udev + unit + polkit (UI **Herunterfahren**), then `enable --now`. UI: `http://<IP>:8080` (listens on `0.0.0.0:8080`).
 
 ```bash
 sudo systemctl status elv-alc-dashboard
@@ -267,7 +267,7 @@ ELV-ALC-Dashboard/
 ├── installer/            # AI install prompts (systemd + Docker)
 ├── scripts/              # run.sh, install-systemd.sh, uninstall-systemd.sh
 ├── systemd/              # elv-alc-dashboard.service
-├── polkit/               # allow service user `alc` to power off the host
+├── polkit/               # allow service user to power off the host
 ├── udev/                 # 99-elv-alc.rules
 ├── Dockerfile
 ├── docker-compose.yml

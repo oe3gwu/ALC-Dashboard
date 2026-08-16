@@ -1,21 +1,19 @@
 #!/usr/bin/env bash
 # Installiert ELV ALC Dashboard nach /opt/alc und aktiviert Autostart via systemd.
-# Service-User: alc (bestehende Installationen mit elv-alc werden umgestellt).
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 DEST="${DEST:-/opt/alc}"
 SERVICE_NAME="elv-alc-dashboard"
-SERVICE_USER="${SERVICE_USER:-alc}"
-LEGACY_USER="elv-alc"
+SERVICE_USER="${SERVICE_USER:-elv-alc}"
 UNIT_SRC="$ROOT/systemd/elv-alc-dashboard.service"
 UNIT_DST="/etc/systemd/system/${SERVICE_NAME}.service"
 UDEV_SRC="$ROOT/udev/99-elv-alc.rules"
 UDEV_DST="/etc/udev/rules.d/99-elv-alc.rules"
-POLKIT_RULES_SRC="$ROOT/polkit/50-alc-poweroff.rules"
-POLKIT_RULES_DST="/etc/polkit-1/rules.d/50-alc-poweroff.rules"
-POLKIT_PKLA_SRC="$ROOT/polkit/50-alc-poweroff.pkla"
-POLKIT_PKLA_DST="/etc/polkit-1/localauthority/50-local.d/50-alc-poweroff.pkla"
+POLKIT_RULES_SRC="$ROOT/polkit/50-elv-alc-poweroff.rules"
+POLKIT_RULES_DST="/etc/polkit-1/rules.d/50-elv-alc-poweroff.rules"
+POLKIT_PKLA_SRC="$ROOT/polkit/50-elv-alc-poweroff.pkla"
+POLKIT_PKLA_DST="/etc/polkit-1/localauthority/50-local.d/50-elv-alc-poweroff.pkla"
 
 if [[ "$(id -u)" -ne 0 ]]; then
   echo "Bitte mit sudo ausführen: sudo $0"
@@ -24,12 +22,6 @@ fi
 
 echo "==> Zielverzeichnis: $DEST"
 echo "==> Service-User:    $SERVICE_USER"
-
-# Stop first so we can chown / drop the legacy user without a running process.
-if systemctl is-active --quiet "$SERVICE_NAME" 2>/dev/null; then
-  echo "==> Stoppe $SERVICE_NAME…"
-  systemctl stop "$SERVICE_NAME" || true
-fi
 
 if ! id -u "$SERVICE_USER" &>/dev/null; then
   echo "==> Lege Systemuser $SERVICE_USER an…"
@@ -98,9 +90,6 @@ mkdir -p /etc/polkit-1/rules.d /etc/polkit-1/localauthority/50-local.d
 sed "s/__SERVICE_USER__/$SERVICE_USER/g" "$POLKIT_RULES_SRC" > "$POLKIT_RULES_DST"
 sed "s/__SERVICE_USER__/$SERVICE_USER/g" "$POLKIT_PKLA_SRC" > "$POLKIT_PKLA_DST"
 chmod 644 "$POLKIT_RULES_DST" "$POLKIT_PKLA_DST"
-# Drop rules that still named the old elv-alc user
-rm -f /etc/polkit-1/rules.d/50-elv-alc-poweroff.rules
-rm -f /etc/polkit-1/localauthority/50-local.d/50-elv-alc-poweroff.pkla
 systemctl try-restart polkit.service 2>/dev/null || systemctl try-restart polkit 2>/dev/null || true
 
 echo "==> systemd Unit…"
@@ -110,31 +99,18 @@ cp "$UNIT_SRC" "$UNIT_DST"
 if [[ "$DEST" != "/opt/alc" ]]; then
   sed -i "s|/opt/alc|$DEST|g" "$UNIT_DST"
 fi
-sed -i "s/^User=.*/User=$SERVICE_USER/" "$UNIT_DST"
+if [[ "$SERVICE_USER" != "elv-alc" ]]; then
+  sed -i "s/^User=.*/User=$SERVICE_USER/" "$UNIT_DST"
+fi
 
 systemctl daemon-reload
-systemctl enable "$SERVICE_NAME"
-systemctl restart "$SERVICE_NAME"
-
-if [[ "$SERVICE_USER" != "$LEGACY_USER" ]] && id -u "$LEGACY_USER" &>/dev/null; then
-  echo "==> Entferne Legacy-User $LEGACY_USER…"
-  # Drop leftover processes (service already stopped/restarted as $SERVICE_USER)
-  pkill -u "$LEGACY_USER" 2>/dev/null || true
-  sleep 0.5
-  if ! userdel "$LEGACY_USER" 2>/dev/null; then
-    echo "Warnung: $LEGACY_USER konnte nicht gelöscht werden (noch Prozesse oder Login)."
-    echo "         Manuell: sudo pkill -u $LEGACY_USER; sudo userdel $LEGACY_USER"
-  else
-    echo "    $LEGACY_USER entfernt. Dienst läuft als $SERVICE_USER."
-  fi
-fi
+systemctl enable --now "$SERVICE_NAME"
 
 echo
 echo "Fertig. Status:"
 systemctl --no-pager --full status "$SERVICE_NAME" || true
 echo
 echo "UI:        http://$(hostname -I 2>/dev/null | awk '{print $1}'):8080  oder  http://127.0.0.1:8080"
-echo "User:      $SERVICE_USER"
 echo "Logs:      journalctl -u $SERVICE_NAME -f"
 echo "Stoppen:   sudo systemctl stop $SERVICE_NAME"
 echo "Autostart: sudo systemctl disable $SERVICE_NAME"

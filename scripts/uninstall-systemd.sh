@@ -4,8 +4,7 @@ set -euo pipefail
 
 DEST="${DEST:-/opt/alc}"
 SERVICE_NAME="elv-alc-dashboard"
-SERVICE_USER="${SERVICE_USER:-alc}"
-LEGACY_USER="elv-alc"
+SERVICE_USER="${SERVICE_USER:-elv-alc}"
 PURGE=false
 
 for arg in "$@"; do
@@ -28,29 +27,18 @@ echo "==> Stoppe und deaktiviere $SERVICE_NAME…"
 systemctl stop "$SERVICE_NAME" 2>/dev/null || true
 systemctl disable "$SERVICE_NAME" 2>/dev/null || true
 rm -f "/etc/systemd/system/${SERVICE_NAME}.service"
-rm -f /etc/polkit-1/rules.d/50-alc-poweroff.rules
-rm -f /etc/polkit-1/localauthority/50-local.d/50-alc-poweroff.pkla
 rm -f /etc/polkit-1/rules.d/50-elv-alc-poweroff.rules
 rm -f /etc/polkit-1/localauthority/50-local.d/50-elv-alc-poweroff.pkla
 systemctl try-restart polkit.service 2>/dev/null || systemctl try-restart polkit 2>/dev/null || true
 systemctl daemon-reload
 systemctl reset-failed "$SERVICE_NAME" 2>/dev/null || true
 
-remove_user() {
-  local u="$1"
-  if id -u "$u" &>/dev/null; then
-    echo "==> Entferne User $u…"
-    pkill -u "$u" 2>/dev/null || true
-    userdel "$u" 2>/dev/null || true
-  fi
-}
-
 if [[ "$PURGE" == true ]]; then
   echo "==> Entferne $DEST…"
   rm -rf "$DEST"
-  remove_user "$SERVICE_USER"
-  if [[ "$SERVICE_USER" != "$LEGACY_USER" ]]; then
-    remove_user "$LEGACY_USER"
+  if id -u "$SERVICE_USER" &>/dev/null; then
+    echo "==> Entferne User $SERVICE_USER…"
+    userdel "$SERVICE_USER" 2>/dev/null || true
   fi
   echo "==> udev-Regel belassen (harmlos). Zum Entfernen:"
   echo "    sudo rm -f /etc/udev/rules.d/99-elv-alc.rules /etc/udev/rules.d/99-elv-alc8500.rules && sudo udevadm control --reload-rules"
