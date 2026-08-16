@@ -42,7 +42,7 @@ from app.protocol.models import (
 from app.serial_manager import SerialManager
 from app.services.battery_db_archive import SLOT_COUNT, BatteryDbArchive, entry_to_model
 from app.services.firmware_guide import build_firmware_guide
-from app.services.host_power import resolve_poweroff_argv, spawn_poweroff
+from app.services.host_power import poweroff_host
 from app.services.live_series import LiveSeriesStore
 from app.services.logger_archive import LoggerArchive
 from app.services.pdf_export import build_logger_pdf, write_pdf
@@ -440,12 +440,16 @@ async def system_shutdown(body: ConfirmAction) -> dict[str, Any]:
     if not body.confirm:
         raise HTTPException(400, "Bestätigung erforderlich (confirm=true)")
     try:
-        argv = resolve_poweroff_argv()
+        argv = await asyncio.to_thread(poweroff_host)
     except FileNotFoundError as exc:
         raise HTTPException(500, str(exc)) from exc
-    loop = asyncio.get_running_loop()
-    loop.call_later(0.8, lambda: spawn_poweroff(argv))
-    log.warning("Host shutdown requested; poweroff in 0.8s (%s)", " ".join(argv))
+    except PermissionError as exc:
+        raise HTTPException(
+            403,
+            "Herunterfahren nicht erlaubt. Polkit-Regel für den Dienst-User fehlt "
+            f"({exc}).",
+        ) from exc
+    log.warning("Host shutdown accepted (%s)", " ".join(argv))
     return {"ok": True}
 
 

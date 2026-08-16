@@ -1,0 +1,12 @@
+// Allow the dashboard service user to power off this host (UI „Herunterfahren“).
+// Installer replaces __SERVICE_USER__ (default: elv-alc).
+polkit.addRule(function (action, subject) {
+    if (
+        (action.id == "org.freedesktop.login1.power-off" ||
+            action.id == "org.freedesktop.login1.power-off-multiple-sessions" ||
+            action.id == "org.freedesktop.login1.power-off-ignore-inhibit") &&
+        subject.user == "__SERVICE_USER__"
+    ) {
+        return polkit.Result.YES;
+    }
+});

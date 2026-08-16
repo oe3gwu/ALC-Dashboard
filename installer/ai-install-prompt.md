@@ -30,7 +30,7 @@ Mandatory workflow (do not skip steps because something is "already installed"):
 2. Prerequisites: Python 3.11+, Node.js/npm 20+, rsync, sudo/root. Fix missing tools, then continue.
 3. From the repository root, ALWAYS run a full reinstall (even if /opt/alc or elv-alc-dashboard.service already exist):
    sudo ./scripts/install-systemd.sh
-   The script must rsync to /opt/alc, recreate/update the venv, pip install, npm install + npm run build, install udev + unit, then enable --now / restart the service.
+   The script must rsync to /opt/alc, recreate/update the venv, pip install, npm install + npm run build, install udev + polkit (host shutdown) + unit, then enable --now / restart the service.
 4. Confirm success:
    - sudo systemctl status elv-alc-dashboard  → active (running)
    - Service listens on 0.0.0.0:8080

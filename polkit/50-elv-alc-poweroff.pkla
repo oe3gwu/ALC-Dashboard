@@ -1,0 +1,6 @@
+[Allow dashboard user to power off the host]
+Identity=unix-user:__SERVICE_USER__
+Action=org.freedesktop.login1.power-off;org.freedesktop.login1.power-off-multiple-sessions;org.freedesktop.login1.power-off-ignore-inhibit
+ResultAny=yes
+ResultInactive=yes
+ResultActive=yes

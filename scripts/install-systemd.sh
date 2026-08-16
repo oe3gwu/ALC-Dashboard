@@ -10,6 +10,10 @@ UNIT_SRC="$ROOT/systemd/elv-alc-dashboard.service"
 UNIT_DST="/etc/systemd/system/${SERVICE_NAME}.service"
 UDEV_SRC="$ROOT/udev/99-elv-alc.rules"
 UDEV_DST="/etc/udev/rules.d/99-elv-alc.rules"
+POLKIT_RULES_SRC="$ROOT/polkit/50-elv-alc-poweroff.rules"
+POLKIT_RULES_DST="/etc/polkit-1/rules.d/50-elv-alc-poweroff.rules"
+POLKIT_PKLA_SRC="$ROOT/polkit/50-elv-alc-poweroff.pkla"
+POLKIT_PKLA_DST="/etc/polkit-1/localauthority/50-local.d/50-elv-alc-poweroff.pkla"
 
 if [[ "$(id -u)" -ne 0 ]]; then
   echo "Bitte mit sudo ausführen: sudo $0"
@@ -80,6 +84,13 @@ rm -f /etc/udev/rules.d/99-elv-alc8500.rules
 cp "$UDEV_SRC" "$UDEV_DST"
 udevadm control --reload-rules
 udevadm trigger || true
+
+echo "==> Polkit (Herunterfahren in der UI)…"
+mkdir -p /etc/polkit-1/rules.d /etc/polkit-1/localauthority/50-local.d
+sed "s/__SERVICE_USER__/$SERVICE_USER/g" "$POLKIT_RULES_SRC" > "$POLKIT_RULES_DST"
+sed "s/__SERVICE_USER__/$SERVICE_USER/g" "$POLKIT_PKLA_SRC" > "$POLKIT_PKLA_DST"
+chmod 644 "$POLKIT_RULES_DST" "$POLKIT_PKLA_DST"
+systemctl try-restart polkit.service 2>/dev/null || systemctl try-restart polkit 2>/dev/null || true
 
 echo "==> systemd Unit…"
 # Unit immer aus Repo-Vorlage, Pfade sind /opt/alc

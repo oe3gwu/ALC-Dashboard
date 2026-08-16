@@ -27,6 +27,9 @@ echo "==> Stoppe und deaktiviere $SERVICE_NAME…"
 systemctl stop "$SERVICE_NAME" 2>/dev/null || true
 systemctl disable "$SERVICE_NAME" 2>/dev/null || true
 rm -f "/etc/systemd/system/${SERVICE_NAME}.service"
+rm -f /etc/polkit-1/rules.d/50-elv-alc-poweroff.rules
+rm -f /etc/polkit-1/localauthority/50-local.d/50-elv-alc-poweroff.pkla
+systemctl try-restart polkit.service 2>/dev/null || systemctl try-restart polkit 2>/dev/null || true
 systemctl daemon-reload
 systemctl reset-failed "$SERVICE_NAME" 2>/dev/null || true
 
