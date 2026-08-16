@@ -3,7 +3,7 @@ import { getSeries, subscribe, type SeriesPoint } from '../liveSeries'
 
 export type { SeriesPoint }
 
-/** Live U/I/C series for one channel from the shared RAM store (survives SPA nav + F5 while running). */
+/** Live U/I/C series hydrated from dashboard-process RAM (up to 6 h). */
 export function useChannelSeries(channel: number): SeriesPoint[] {
   const [points, setPoints] = useState<SeriesPoint[]>(() => getSeries(channel))
 

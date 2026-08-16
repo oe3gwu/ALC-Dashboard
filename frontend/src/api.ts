@@ -149,6 +149,10 @@ export const api = {
     req('/api/connection/connect', { method: 'POST', body: JSON.stringify(body) }),
   disconnect: () => req('/api/connection/disconnect', { method: 'POST' }),
   live: () => req<LivePayload>('/api/live'),
+  liveSeries: () =>
+    req<{ channels: Record<string, { t0: number; points: { t: number; v: number | null; i: number | null; c: number | null }[] }> }>(
+      '/api/live/series',
+    ),
   getChannel: (ch: number) => req<ChannelParams>(`/api/channels/${ch}`),
   setChannel: (ch: number, body: Record<string, unknown>) =>
     req<{ params: ChannelParams; corrections: Record<string, { requested: unknown; device: unknown }> }>(`/api/channels/${ch}`, {

@@ -41,6 +41,7 @@ from app.protocol.models import (
 from app.serial_manager import SerialManager
 from app.services.battery_db_archive import SLOT_COUNT, BatteryDbArchive, entry_to_model
 from app.services.firmware_guide import build_firmware_guide
+from app.services.live_series import LiveSeriesStore
 from app.services.logger_archive import LoggerArchive
 from app.services.pdf_export import build_logger_pdf, write_pdf
 
@@ -51,6 +52,7 @@ cfg = load_config()
 manager = SerialManager(cfg)
 archive = LoggerArchive(cfg.data_path)
 battery_db = BatteryDbArchive(cfg.data_path)
+live_series = LiveSeriesStore()
 
 
 def current_profile():
@@ -98,6 +100,40 @@ AUTO_CONNECT_RETRY_S = 5.0
 
 _main_loop: asyncio.AbstractEventLoop | None = None
 _autoconnect_task: asyncio.Task[None] | None = None
+_sampler_task: asyncio.Task[None] | None = None
+_SERIES_TICK_S = 1.0
+
+
+class LiveBroadcaster:
+    """Fan-out of the latest live payload to all /ws/live clients."""
+
+    def __init__(self) -> None:
+        self.last_payload: dict[str, Any] | None = None
+        self._clients: set[WebSocket] = set()
+
+    def add(self, ws: WebSocket) -> None:
+        self._clients.add(ws)
+
+    def discard(self, ws: WebSocket) -> None:
+        self._clients.discard(ws)
+
+    async def send_last(self, ws: WebSocket) -> None:
+        if self.last_payload is not None:
+            await ws.send_json(self.last_payload)
+
+    async def publish(self, payload: dict[str, Any]) -> None:
+        self.last_payload = payload
+        dead: list[WebSocket] = []
+        for client in list(self._clients):
+            try:
+                await client.send_json(payload)
+            except Exception:
+                dead.append(client)
+        for client in dead:
+            self._clients.discard(client)
+
+
+live_hub = LiveBroadcaster()
 
 
 class DeviceLostError(Exception):
@@ -180,9 +216,56 @@ def note_device_lost(exc: BaseException) -> DeviceLostError:
     return DeviceLostError(manager.last_error or "Geräteverbindung verloren")
 
 
+async def _live_sampler_loop() -> None:
+    """Poll the device on poll_interval; append 1 Hz samples even with 0 browsers."""
+    loop = asyncio.get_running_loop()
+    next_poll = 0.0
+    next_series = 0.0
+    while True:
+        try:
+            now = loop.time()
+            poll_every = max(0.2, float(cfg.poll_interval) or 1.5)
+            wait = min(next_poll, next_series) - now
+            if wait > 0:
+                await asyncio.sleep(wait)
+                now = loop.time()
+
+            if now >= next_poll:
+                try:
+                    payload = await asyncio.to_thread(_live_payload_nonblocking)
+                except Exception as exc:
+                    if is_link_error(exc):
+                        note_device_lost(exc)
+                        payload = {
+                            "type": "live",
+                            "connection": manager.status(),
+                            "channels": [],
+                            "measurements": [],
+                            "temperatures": {},
+                        }
+                    else:
+                        log.debug("live sampler poll: %s", exc)
+                        payload = None
+                if payload is not None:
+                    await live_hub.publish(payload)
+                next_poll = loop.time() + poll_every
+
+            now = loop.time()
+            if now >= next_series:
+                snap = live_hub.last_payload
+                if snap is not None and snap.get("type") != "error":
+                    live_series.ingest(snap.get("channels") or [], snap.get("measurements") or [])
+                next_series = loop.time() + _SERIES_TICK_S
+        except asyncio.CancelledError:
+            raise
+        except Exception:
+            log.exception("live sampler")
+            await asyncio.sleep(1.0)
+
+
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    global _main_loop, _autoconnect_task
+    global _main_loop, _autoconnect_task, _sampler_task
     cfg.data_path.mkdir(parents=True, exist_ok=True)
     (cfg.data_path / "logger").mkdir(parents=True, exist_ok=True)
     _main_loop = asyncio.get_running_loop()
@@ -194,9 +277,18 @@ async def lifespan(app: FastAPI):
         log.warning("Auto-connect fehlgeschlagen: %s", exc)
 
     ensure_autoconnect_task()
+    _sampler_task = asyncio.create_task(_live_sampler_loop())
 
     yield
 
+    sampler = _sampler_task
+    _sampler_task = None
+    if sampler is not None:
+        sampler.cancel()
+        try:
+            await sampler
+        except asyncio.CancelledError:
+            pass
     task = _autoconnect_task
     _autoconnect_task = None
     if task is not None:
@@ -434,6 +526,12 @@ def live() -> dict[str, Any]:
     return {"channels": channels, "measurements": measurements, "temperatures": temps, "connection": manager.status()}
 
 
+@app.get("/api/live/series")
+def live_series_get() -> dict[str, Any]:
+    """Full in-process U/I/C history (up to 6 h). Independent of client host/origin."""
+    return live_series.snapshot()
+
+
 @app.get("/api/channels/{channel}")
 def get_channel(channel: int) -> dict[str, Any]:
     valid_channel(channel)
@@ -507,6 +605,7 @@ def process_start(body: StartProcessRequest) -> dict[str, Any]:
         raise HTTPException(400, "Aktivator für diesen Kanal/dieses Gerät nicht verfügbar")
     with manager.with_client():
         echoed = set_channel_params_http(client, params)
+        live_series.clear(params.channel)
         state = client.set_activity(params.channel, stop=False)
     return {
         "params": echoed.to_dict(),
@@ -1110,34 +1209,16 @@ def _live_payload_nonblocking() -> dict[str, Any] | None:
 @app.websocket("/ws/live")
 async def ws_live(ws: WebSocket) -> None:
     await ws.accept()
+    live_hub.add(ws)
     try:
+        try:
+            await live_hub.send_last(ws)
+        except Exception:
+            return
         while True:
-            try:
-                # Run lock/IO in a worker thread so logger progress streams stay live.
-                payload = await asyncio.to_thread(_live_payload_nonblocking)
-            except Exception as exc:
-                if _ws_disconnected(exc):
-                    return
-                if is_link_error(exc):
-                    note_device_lost(exc)
-                    payload = {
-                        "type": "live",
-                        "connection": manager.status(),
-                        "channels": [],
-                        "measurements": [],
-                        "temperatures": {},
-                    }
-                else:
-                    payload = {"type": "error", "message": str(exc)}
-
-            if payload is not None:
-                try:
-                    await ws.send_json(payload)
-                except Exception:
-                    # Peer gone / half-closed — exit (avoids asyncio socket.send spam)
-                    return
-
-            await asyncio.sleep(cfg.poll_interval)
+            msg = await ws.receive()
+            if msg.get("type") in {"websocket.disconnect", "websocket.close"}:
+                return
     except WebSocketDisconnect:
         return
     except Exception as exc:
@@ -1145,6 +1226,7 @@ async def ws_live(ws: WebSocket) -> None:
             log.debug("ws/live ended: %s", exc)
         return
     finally:
+        live_hub.discard(ws)
         try:
             await ws.close()
         except Exception:

@@ -1,6 +1,6 @@
 import { createContext, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
 import { api, liveSocket, type ChannelParams, type LivePayload, type Measurement } from './api'
-import { updateLiveSnapshot } from './liveSeries'
+import { replaceFromServer, updateLiveSnapshot } from './liveSeries'
 import { createStageStabilizeState, stabilizeChannels } from './stageStabilize'
 
 type LiveCtx = {
@@ -74,10 +74,21 @@ export function LiveProvider({ children }: { children: ReactNode }) {
     }
   }
 
+  const hydrateSeries = async () => {
+    try {
+      const data = await api.liveSeries()
+      replaceFromServer(data.channels)
+    } catch {
+      /* offline or older backend */
+    }
+  }
+
   const refreshRef = useRef(refresh)
   refreshRef.current = refresh
   const applyRef = useRef(apply)
   applyRef.current = apply
+  const hydrateSeriesRef = useRef(hydrateSeries)
+  hydrateSeriesRef.current = hydrateSeries
 
   useEffect(() => {
     let unmounted = false
@@ -95,6 +106,7 @@ export function LiveProvider({ children }: { children: ReactNode }) {
         ws.onclose = null
         ws.onmessage = null
         ws.onerror = null
+        ws.onopen = null
         try {
           ws.close()
         } catch {
@@ -111,6 +123,9 @@ export function LiveProvider({ children }: { children: ReactNode }) {
         lastMsgAt = Date.now()
         if (!unmounted) applyRef.current(data)
       })
+      ws.onopen = () => {
+        void hydrateSeriesRef.current()
+      }
       ws.onclose = () => {
         if (unmounted) return
         markBackendLostIfStale()
@@ -127,12 +142,13 @@ export function LiveProvider({ children }: { children: ReactNode }) {
 
     const resumeLive = () => {
       ensureConnected()
+      void hydrateSeriesRef.current()
       void refreshRef.current()
       updateLiveSnapshot(channelsRef.current, measurementsRef.current)
     }
 
     const onPageHide = () => {
-      // Persist samples; close socket but do NOT mark unmounted (bfcache / tab sleep).
+      // Close socket but do NOT mark unmounted (bfcache / tab sleep).
       updateLiveSnapshot(channelsRef.current, measurementsRef.current)
       drop()
     }
@@ -145,6 +161,7 @@ export function LiveProvider({ children }: { children: ReactNode }) {
       if (document.visibilityState === 'visible') resumeLive()
     }
 
+    void hydrateSeriesRef.current()
     void refreshRef.current()
     connect()
     watchdog = window.setInterval(() => {

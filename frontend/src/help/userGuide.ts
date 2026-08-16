@@ -187,6 +187,7 @@ const de: GuideSection[] = [
         type: 'ul',
         items: [
           'Diagramm umschalten zwischen U/I und Kapazität.',
+          'Live-Kurven liegen bis 6 Stunden im RAM des Dashboard-Dienstes — unabhängig von Browser, Tab und Zugriffs-URL. Ein Dienst-Neustart leert sie; dauerhaft speichert der Datenlogger.',
           '„Detail“ öffnet die detaillierte Live-Ansicht eines Kanals.',
           '„Start“ springt zu Vorgang starten für diesen Kanal.',
           '„Stop“ bricht den laufenden Vorgang auf dem Kanal ab.',
@@ -478,6 +479,7 @@ const en: GuideSection[] = [
         type: 'ul',
         items: [
           'Toggle the chart between U/I and capacity.',
+          'Live curves stay up to 6 hours in the dashboard process RAM — independent of browser, tab, and access URL. Restarting the service clears them; the data logger is the durable archive.',
           'Detail opens the live detail view for that channel.',
           'Start jumps to Start process for that channel.',
           'Stop aborts the running process on the channel.',

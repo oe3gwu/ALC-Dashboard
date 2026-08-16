@@ -2,16 +2,14 @@ import type { ChannelParams, Measurement } from './api'
 
 export type SeriesPoint = { t: number; v: number | null; i: number | null; c: number | null }
 
-type ChannelSeries = {
+export type ServerChannelSeries = {
   t0: number
   points: SeriesPoint[]
 }
 
-/** Bumped when filter semantics change so old glitchy series are discarded. */
-const SESSION_KEY = 'alc-live-series-v6'
-
-type SessionPayload = {
-  channels: Record<string, ChannelSeries>
+type ChannelSeries = {
+  t0: number
+  points: SeriesPoint[]
 }
 
 const seriesByChannel = new Map<number, ChannelSeries>()
@@ -20,11 +18,7 @@ const listeners = new Set<() => void>()
 let channelsSnap: ChannelParams[] = []
 let measurementsSnap: Measurement[] = []
 let intervalId: number | null = null
-let hydrated = false
-/** Consecutive idle observations before clearing a running series (guards against glitches). */
-const idleStreakByChannel = new Map<number, number>()
-const IDLE_CLEAR_STREAK = 2
-/** Empty live payloads (disconnect race) before accepting wipe. */
+/** Empty live payloads (disconnect race) before accepting an empty snap. */
 let emptySnapStreak = 0
 const EMPTY_SNAP_STREAK = 3
 
@@ -59,70 +53,31 @@ function notify(): void {
   }
 }
 
-function persistToSession(): void {
+function dropLegacySessionKeys(): void {
   if (typeof sessionStorage === 'undefined') return
   try {
-    const channels: Record<string, ChannelSeries> = {}
-    for (const [ch, series] of seriesByChannel) {
-      if (series.points.length === 0) continue
-      channels[String(ch)] = { t0: series.t0, points: scrubPoints(series.points) }
-    }
-    if (Object.keys(channels).length === 0) {
-      sessionStorage.removeItem(SESSION_KEY)
-      return
-    }
-    const payload: SessionPayload = { channels }
-    sessionStorage.setItem(SESSION_KEY, JSON.stringify(payload))
-  } catch {
-    /* quota / private mode */
-  }
-}
-
-function hydrateFromSession(): void {
-  if (hydrated || typeof sessionStorage === 'undefined') return
-  hydrated = true
-  try {
-    // Drop legacy keys that still contain needle spikes
-    for (const legacy of [
+    for (const key of [
       'alc-live-series-v1',
       'alc-live-series-v2',
       'alc-live-series-v3',
       'alc-live-series-v4',
       'alc-live-series-v5',
+      'alc-live-series-v6',
     ]) {
-      sessionStorage.removeItem(legacy)
-    }
-    const raw = sessionStorage.getItem(SESSION_KEY)
-    if (!raw) return
-    const payload = JSON.parse(raw) as SessionPayload
-    if (!payload?.channels || typeof payload.channels !== 'object') return
-    for (const [key, value] of Object.entries(payload.channels)) {
-      const ch = Number(key)
-      if (!Number.isFinite(ch) || !value?.points || !Array.isArray(value.points)) continue
-      const points = scrubPoints(
-        value.points.filter((p) => p && typeof p.t === 'number'),
-      )
-      if (points.length === 0) continue
-      seriesByChannel.set(ch, {
-        t0: typeof value.t0 === 'number' ? value.t0 : Date.now(),
-        points,
-      })
+      sessionStorage.removeItem(key)
     }
   } catch {
-    /* ignore corrupt session */
+    /* private mode */
   }
 }
 
-hydrateFromSession()
+dropLegacySessionKeys()
 
 function clearChannel(channel: number, silent = false): void {
   pendingByChannel.delete(channel)
   if (!seriesByChannel.has(channel)) return
   seriesByChannel.delete(channel)
-  if (!silent) {
-    persistToSession()
-    notify()
-  }
+  if (!silent) notify()
 }
 
 export function clearSeries(channel: number): void {
@@ -133,7 +88,25 @@ export function clearAllSeries(): void {
   pendingByChannel.clear()
   if (seriesByChannel.size === 0) return
   seriesByChannel.clear()
-  persistToSession()
+  notify()
+}
+
+/** Replace local charts from dashboard-process RAM (host/origin independent). */
+export function replaceFromServer(channels: Record<string, ServerChannelSeries> | null | undefined): void {
+  pendingByChannel.clear()
+  seriesByChannel.clear()
+  if (channels && typeof channels === 'object') {
+    for (const [key, value] of Object.entries(channels)) {
+      const ch = Number(key)
+      if (!Number.isFinite(ch) || !value?.points || !Array.isArray(value.points)) continue
+      const points = scrubPoints(value.points.filter((p) => p && typeof p.t === 'number'))
+      if (points.length === 0) continue
+      seriesByChannel.set(ch, {
+        t0: typeof value.t0 === 'number' ? value.t0 : Date.now(),
+        points,
+      })
+    }
+  }
   notify()
 }
 
@@ -213,8 +186,7 @@ export function isStableValue(value: number | null | undefined, key: MetricKey):
 }
 
 /**
- * Stable → ~0/null collapse (U/I/C needles). Never accept into the series while running;
- * idle clear removes the chart when the process actually ends.
+ * Stable → ~0/null collapse (U/I/C needles). Never accept into the series while running.
  */
 export function isMetricCollapse(
   key: MetricKey,
@@ -392,7 +364,7 @@ function appendPoint(series: ChannelSeries, now: number, sample: PendingSample):
 
 function syncTimer(): void {
   if (typeof window === 'undefined') return
-  const running = anyRunning() || seriesByChannel.size > 0
+  const running = anyRunning()
   if (running && intervalId == null) {
     sampleTick()
     intervalId = window.setInterval(sampleTick, 1000)
@@ -407,22 +379,6 @@ function sampleTick(): void {
   const now = Date.now()
 
   if (channelsSnap.length === 0) {
-    for (const [ch, series] of seriesByChannel) {
-      const m = measurementsSnap.find((x) => x.channel === ch)
-      const prev = series.points.at(-1) ?? null
-      const raw = {
-        v: m?.voltage_V ?? prev?.v ?? null,
-        i: m?.current_mA ?? prev?.i ?? null,
-        c: m?.capacity_mAh ?? prev?.c ?? null,
-      }
-      const sample = resolveSample(ch, prev, raw)
-      appendPoint(series, now, sample)
-      changed = true
-    }
-    if (changed) {
-      persistToSession()
-      notify()
-    }
     return
   }
 
@@ -448,21 +404,9 @@ function sampleTick(): void {
     changed = true
   }
 
-  const known = new Set(channelsSnap.map((c) => c.channel))
-  for (const ch of [...seriesByChannel.keys()]) {
-    if (!known.has(ch)) {
-      pendingByChannel.delete(ch)
-      seriesByChannel.delete(ch)
-      changed = true
-    }
-  }
+  if (changed) notify()
 
-  if (changed) {
-    persistToSession()
-    notify()
-  }
-
-  if (!anyRunning() && seriesByChannel.size === 0 && intervalId != null) {
+  if (!anyRunning() && intervalId != null) {
     window.clearInterval(intervalId)
     intervalId = null
   }
@@ -485,28 +429,6 @@ export function updateLiveSnapshot(channels: ChannelParams[], measurements: Meas
     measurements.length === channelsSnap.length
       ? measurements.map((m, idx) => ({ ...m, channel: idx }))
       : measurements
-
-  let cleared = false
-  for (const c of channelsSnap) {
-    const ch = c.channel
-    const idle = isIdle(c)
-
-    if (idle) {
-      const streak = (idleStreakByChannel.get(ch) ?? 0) + 1
-      idleStreakByChannel.set(ch, streak)
-      if (streak >= IDLE_CLEAR_STREAK && seriesByChannel.has(ch)) {
-        pendingByChannel.delete(ch)
-        seriesByChannel.delete(ch)
-        cleared = true
-      }
-    } else {
-      idleStreakByChannel.set(ch, 0)
-    }
-  }
-  if (cleared) {
-    persistToSession()
-    notify()
-  }
 
   syncTimer()
 }
