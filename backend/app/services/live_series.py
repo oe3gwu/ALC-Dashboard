@@ -18,12 +18,21 @@ PendingSlot = dict[str, Any]
 PendingState = dict[str, PendingSlot]
 
 # Match frontend/src/liveSeries.ts — hold serial glitches instead of drawing axis needles.
-GLITCH_V_ABS = 0.15  # V in one second
-GLITCH_I_ABS = 60.0  # mA in one second
-GLITCH_C_ABS = 20.0  # mAh in one second
+# Absolute caps apply at high levels; relative band catches trickle/top-off needles
+# (e.g. 93 mA → 45 mA) that stay well below the 60 mA absolute jump.
+GLITCH_V_ABS = 0.15  # V
+GLITCH_V_REL = 0.04
+GLITCH_V_FLOOR = 0.05
+GLITCH_I_ABS = 60.0  # mA
+GLITCH_I_REL = 0.15
+GLITCH_I_FLOOR = 10.0
+GLITCH_C_ABS = 20.0  # mAh
+GLITCH_C_REL = 0.03
+GLITCH_C_FLOOR = 5.0
 CONFIRM_DEFAULT = 3
 CAPACITY_ABSURD = 15000.0
 SCRUB_RUN_MAX = 20
+STABLE_I_MA = 20.0  # trickle/top-off is often 50–100 mA; 120 hid those plateaus
 
 
 def _now_ms(now_ms: int | None) -> int:
@@ -50,18 +59,22 @@ def _finite(value: Any) -> float | None:
     return x
 
 
-def thresh_for(key: MetricKey) -> float:
+def thresh_for(key: MetricKey, ref: float | None = None) -> float:
     if key == "v":
-        return GLITCH_V_ABS
-    if key == "i":
-        return GLITCH_I_ABS
-    return GLITCH_C_ABS
+        abs_t, rel, floor = GLITCH_V_ABS, GLITCH_V_REL, GLITCH_V_FLOOR
+    elif key == "i":
+        abs_t, rel, floor = GLITCH_I_ABS, GLITCH_I_REL, GLITCH_I_FLOOR
+    else:
+        abs_t, rel, floor = GLITCH_C_ABS, GLITCH_C_REL, GLITCH_C_FLOOR
+    if ref is None or not math.isfinite(ref):
+        return abs_t
+    return max(floor, min(abs_t, rel * abs(ref)))
 
 
-def metric_abrupt(prev: float | None, nxt: float | None, abs_thresh: float) -> bool:
+def metric_abrupt(prev: float | None, nxt: float | None, key: MetricKey) -> bool:
     if prev is None or nxt is None:
         return (prev is None) != (nxt is None)
-    return abs(prev - nxt) >= abs_thresh
+    return abs(prev - nxt) >= thresh_for(key, prev)
 
 
 def is_collapsed_value(value: float | None, key: MetricKey) -> bool:
@@ -78,7 +91,7 @@ def is_stable_value(value: float | None, key: MetricKey) -> bool:
     if value is None:
         return False
     if key == "i":
-        return abs(value) >= 120.0
+        return abs(value) >= STABLE_I_MA
     if key == "c":
         return value >= 30.0
     return value >= 1.2
@@ -89,7 +102,7 @@ def is_metric_collapse(key: MetricKey, prev: float | None, nxt: float | None) ->
 
 
 def near_metric(a: float | None, b: float | None, key: MetricKey) -> bool:
-    return not metric_abrupt(a, b, thresh_for(key))
+    return not metric_abrupt(a, b, key)
 
 
 def sanitize_raw(
@@ -142,7 +155,7 @@ def resolve_metric(
         pending[key] = {"value": raw, "confirms": 1}
         return prev
 
-    if metric_abrupt(prev, raw, thresh_for(key)):
+    if metric_abrupt(prev, raw, key):
         pending[key] = {"value": raw, "confirms": 1}
         return prev
 
@@ -168,19 +181,30 @@ def resolve_sample(
     return sample
 
 
+def _scrub_isolated(key: MetricKey, values: list[float | None]) -> None:
+    """Original 1-sample sandwich: if neighbors agree and the middle jumped, hold left."""
+    n = len(values)
+    for i in range(1, n - 1):
+        if near_metric(values[i - 1], values[i + 1], key) and metric_abrupt(values[i - 1], values[i], key):
+            values[i] = values[i - 1]
+
+
 def _scrub_metric(key: MetricKey, values: list[float | None]) -> None:
+    _scrub_isolated(key, values)
     n = len(values)
     i = 1
     while i < n - 1:
-        if not is_stable_value(values[i - 1], key):
+        # Trickle plateaus (~90 mA) are not "stable" at the old 120 mA gate, but they
+        # must still be eligible as the left side of a sandwich spike.
+        if is_collapsed_value(values[i - 1], key):
             i += 1
             continue
-        if not metric_abrupt(values[i - 1], values[i], thresh_for(key)):
+        if not metric_abrupt(values[i - 1], values[i], key):
             i += 1
             continue
 
         run_start = i
-        while i < n and metric_abrupt(values[run_start - 1], values[i], thresh_for(key)):
+        while i < n and metric_abrupt(values[run_start - 1], values[i], key):
             i += 1
         run_len = i - run_start
         if run_len < 1 or run_len > SCRUB_RUN_MAX or i >= n:
@@ -188,14 +212,14 @@ def _scrub_metric(key: MetricKey, values: list[float | None]) -> None:
 
         left = values[run_start - 1]
         right = values[i]
-        if not is_stable_value(left, key) or not near_metric(left, right, key):
+        if is_collapsed_value(left, key) or not near_metric(left, right, key):
             continue
 
         collapse_run = all(is_collapsed_value(values[run_start + j], key) for j in range(run_len))
         fill = True
         if not collapse_run:
             for j in range(run_len):
-                if not metric_abrupt(left, values[run_start + j], thresh_for(key)):
+                if not metric_abrupt(left, values[run_start + j], key):
                     fill = False
                     break
         if not fill:

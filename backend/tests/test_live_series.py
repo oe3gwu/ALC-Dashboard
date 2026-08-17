@@ -159,6 +159,39 @@ def test_real_voltage_step_accepted_after_confirms():
     assert pts[4]["v"] == 4.2
 
 
+def test_trickle_current_needles_are_held():
+    """CV/trickle ~93 mA with 1–2 s dips to ~45 mA must not draw needles."""
+    store = LiveSeriesStore()
+    t0 = 40_000
+    v, i, c = 14.16, 93.5, 4927.9
+    dips = {5, 12, 13}
+    for n in range(20):
+        cur = 45.0 if n in dips else i
+        store.ingest([_ch(False)], [_m(v, cur, c + n * 0.1)], now_ms=t0 + n * 1000)
+    pts = store.snapshot(now_ms=t0 + 19_000)["channels"]["0"]["points"]
+    assert len(pts) == 20
+    for p in pts:
+        assert p["i"] is not None
+        assert abs(p["i"] - 93.5) < 8, p
+
+
+def test_scrub_fills_trickle_current_dips():
+    from app.services.live_series import scrub_points
+
+    points = [
+        (0, 0.0, 14.16, 93.5, 4900.0),
+        (1, 1.0, 14.16, 45.0, 4900.1),
+        (2, 2.0, 14.16, 93.5, 4900.2),
+        (3, 3.0, 14.16, 40.0, 4900.3),
+        (4, 4.0, 14.16, 50.0, 4900.4),
+        (5, 5.0, 14.16, 93.5, 4900.5),
+    ]
+    cleaned = scrub_points(points)
+    assert abs((cleaned[1][3] or 0) - 93.5) < 1
+    assert abs((cleaned[3][3] or 0) - 93.5) < 8
+    assert abs((cleaned[4][3] or 0) - 93.5) < 8
+
+
 def test_maxlen_caps_at_six_hours_of_1hz():
     store = LiveSeriesStore()
     t0 = 3_000_000

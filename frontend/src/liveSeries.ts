@@ -28,15 +28,23 @@ type MetricPending = { value: number | null; confirms: number }
 type PendingState = Partial<Record<MetricKey, MetricPending>>
 const pendingByChannel = new Map<number, PendingState>()
 
-const GLITCH_V_ABS = 0.15 // V in one second
-const GLITCH_I_ABS = 60 // mA in one second
-const GLITCH_C_ABS = 20 // mAh in one second
+const GLITCH_V_ABS = 0.15 // V
+const GLITCH_V_REL = 0.04
+const GLITCH_V_FLOOR = 0.05
+const GLITCH_I_ABS = 60 // mA
+const GLITCH_I_REL = 0.15
+const GLITCH_I_FLOOR = 10
+const GLITCH_C_ABS = 20 // mAh
+const GLITCH_C_REL = 0.03
+const GLITCH_C_FLOOR = 5
 /** Confirms before accepting a non-collapse abrupt step (ramps, stage changes). */
 const CONFIRM_DEFAULT = 3
 /** Absolute capacity above this is treated as wire garbage. */
 const CAPACITY_ABSURD = 15000
 /** Scrub collapse/spike runs up to this many seconds between two stable neighbors. */
 const SCRUB_RUN_MAX = 20
+/** Trickle/top-off is often 50–100 mA; 120 mA hid those plateaus from collapse-hold. */
+const STABLE_I_MA = 20
 
 function isIdle(c: ChannelParams | undefined): boolean {
   if (!c) return true
@@ -129,18 +137,20 @@ function anyRunning(): boolean {
 function metricAbrupt(
   prev: number | null | undefined,
   next: number | null | undefined,
-  absThresh: number,
+  key: MetricKey,
 ): boolean {
   if (prev == null || next == null) {
     return (prev == null) !== (next == null)
   }
-  return Math.abs(prev - next) >= absThresh
+  return Math.abs(prev - next) >= threshFor(key, prev)
 }
 
-function threshFor(key: MetricKey): number {
-  if (key === 'v') return GLITCH_V_ABS
-  if (key === 'i') return GLITCH_I_ABS
-  return GLITCH_C_ABS
+function threshFor(key: MetricKey, ref?: number | null): number {
+  const abs = key === 'v' ? GLITCH_V_ABS : key === 'i' ? GLITCH_I_ABS : GLITCH_C_ABS
+  const rel = key === 'v' ? GLITCH_V_REL : key === 'i' ? GLITCH_I_REL : GLITCH_C_REL
+  const floor = key === 'v' ? GLITCH_V_FLOOR : key === 'i' ? GLITCH_I_FLOOR : GLITCH_C_FLOOR
+  if (ref == null || !Number.isFinite(ref)) return abs
+  return Math.max(floor, Math.min(abs, rel * Math.abs(ref)))
 }
 
 function sanitizeRaw(raw: PendingSample): PendingSample {
@@ -159,14 +169,14 @@ export function isAbruptSample(
   c: number | null,
 ): boolean {
   return (
-    metricAbrupt(prev.v, v, GLITCH_V_ABS) ||
-    metricAbrupt(prev.i, i, GLITCH_I_ABS) ||
-    metricAbrupt(prev.c, c, GLITCH_C_ABS)
+    metricAbrupt(prev.v, v, 'v') ||
+    metricAbrupt(prev.i, i, 'i') ||
+    metricAbrupt(prev.c, c, 'c')
   )
 }
 
 function nearMetric(a: number | null | undefined, b: number | null | undefined, key: MetricKey): boolean {
-  return !metricAbrupt(a, b, threshFor(key))
+  return !metricAbrupt(a, b, key)
 }
 
 /** Near-zero / missing reading for a metric (the needle tip). */
@@ -180,7 +190,7 @@ export function isCollapsedValue(value: number | null | undefined, key: MetricKe
 /** Previously healthy level that should not snap to the axis. */
 export function isStableValue(value: number | null | undefined, key: MetricKey): boolean {
   if (value == null) return false
-  if (key === 'i') return Math.abs(value) >= 120
+  if (key === 'i') return Math.abs(value) >= STABLE_I_MA
   if (key === 'c') return value >= 30
   return value >= 1.2
 }
@@ -205,8 +215,8 @@ export function isCapacityCollapse(prevC: number | null | undefined, nextC: numb
 }
 
 /**
- * Replace collapse/spike runs where both neighbors are a stable plateau.
- * Never spreads collapsed zeros into good data (left must be stable).
+ * Replace collapse/spike runs where both neighbors sit on the same plateau.
+ * Never spreads collapsed zeros into good data (left must not be collapsed).
  */
 export function scrubPoints(points: SeriesPoint[]): SeriesPoint[] {
   if (points.length < 3) return points
@@ -214,19 +224,25 @@ export function scrubPoints(points: SeriesPoint[]): SeriesPoint[] {
   const keys: MetricKey[] = ['v', 'i', 'c']
 
   for (const key of keys) {
+    for (let j = 1; j < out.length - 1; j++) {
+      if (nearMetric(out[j - 1][key], out[j + 1][key], key) && metricAbrupt(out[j - 1][key], out[j][key], key)) {
+        out[j] = { ...out[j], [key]: out[j - 1][key] }
+      }
+    }
+
     let i = 1
     while (i < out.length - 1) {
-      if (!isStableValue(out[i - 1][key], key)) {
+      if (isCollapsedValue(out[i - 1][key], key)) {
         i += 1
         continue
       }
-      if (!metricAbrupt(out[i - 1][key], out[i][key], threshFor(key))) {
+      if (!metricAbrupt(out[i - 1][key], out[i][key], key)) {
         i += 1
         continue
       }
 
       const runStart = i
-      while (i < out.length && metricAbrupt(out[runStart - 1][key], out[i][key], threshFor(key))) {
+      while (i < out.length && metricAbrupt(out[runStart - 1][key], out[i][key], key)) {
         i += 1
       }
       const runLen = i - runStart
@@ -234,7 +250,7 @@ export function scrubPoints(points: SeriesPoint[]): SeriesPoint[] {
 
       const left = out[runStart - 1][key]
       const right = out[i][key]
-      if (!isStableValue(left, key) || !nearMetric(left, right, key)) continue
+      if (isCollapsedValue(left, key) || !nearMetric(left, right, key)) continue
 
       // Prefer filling collapses; also patch brief non-collapse spikes between plateaus.
       let fill = true
@@ -244,7 +260,7 @@ export function scrubPoints(points: SeriesPoint[]): SeriesPoint[] {
       if (!collapseRun) {
         // Non-collapse spike: every point must be abrupt vs both neighbors' plateau.
         for (let j = 0; j < runLen; j++) {
-          if (!metricAbrupt(left, out[runStart + j][key], threshFor(key))) {
+          if (!metricAbrupt(left, out[runStart + j][key], key)) {
             fill = false
             break
           }
@@ -319,7 +335,7 @@ function resolveMetric(
     return prev
   }
 
-  if (metricAbrupt(prev, raw, threshFor(key))) {
+  if (metricAbrupt(prev, raw, key)) {
     pending[key] = { value: raw, confirms: 1 }
     return prev
   }
