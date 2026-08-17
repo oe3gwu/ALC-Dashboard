@@ -99,7 +99,7 @@ export function replaceFromServer(channels: Record<string, ServerChannelSeries> 
     for (const [key, value] of Object.entries(channels)) {
       const ch = Number(key)
       if (!Number.isFinite(ch) || !value?.points || !Array.isArray(value.points)) continue
-      const points = scrubPoints(value.points.filter((p) => p && typeof p.t === 'number'))
+      const points = holdCollapses(scrubPoints(value.points.filter((p) => p && typeof p.t === 'number')))
       if (points.length === 0) continue
       seriesByChannel.set(ch, {
         t0: typeof value.t0 === 'number' ? value.t0 : Date.now(),
@@ -112,7 +112,7 @@ export function replaceFromServer(channels: Record<string, ServerChannelSeries> 
 
 export function getSeries(channel: number): SeriesPoint[] {
   const pts = seriesByChannel.get(channel)?.points
-  return pts ? scrubPoints(pts) : []
+  return pts ? holdCollapses(scrubPoints(pts)) : []
 }
 
 export function subscribe(listener: () => void): () => void {
@@ -263,6 +263,21 @@ export function scrubPoints(points: SeriesPoint[]): SeriesPoint[] {
   return out
 }
 
+/** Stable → ~0/null keeps the last healthy level (including trailing needles). */
+export function holdCollapses(points: SeriesPoint[]): SeriesPoint[] {
+  if (points.length < 2) return points
+  const out = points.map((p) => ({ ...p }))
+  const keys: MetricKey[] = ['v', 'i', 'c']
+  for (let i = 1; i < out.length; i++) {
+    for (const key of keys) {
+      if (isMetricCollapse(key, out[i - 1][key], out[i][key])) {
+        out[i] = { ...out[i], [key]: out[i - 1][key] }
+      }
+    }
+  }
+  return out
+}
+
 function resolveMetric(
   pending: PendingState,
   key: MetricKey,
@@ -357,7 +372,7 @@ function appendPoint(series: ChannelSeries, now: number, sample: PendingSample):
   if (series.points.length >= 3) {
     const n = series.points.length
     const window = Math.min(n, SCRUB_RUN_MAX * 2 + 3)
-    const scrubbed = scrubPoints(series.points.slice(-window))
+    const scrubbed = holdCollapses(scrubPoints(series.points.slice(-window)))
     series.points = [...series.points.slice(0, Math.max(0, n - window)), ...scrubbed]
   }
 }

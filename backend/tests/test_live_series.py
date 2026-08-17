@@ -93,12 +93,78 @@ def test_age_prune_keeps_recent_tail():
     assert pts[0]["t"] == 0.0
 
 
+def test_collapse_to_zero_holds_previous_voltage_and_current():
+    """Serial glitch 11.4 V / 1400 mA → 0/0 must not draw axis needles."""
+    store = LiveSeriesStore()
+    t0 = 10_000
+    store.ingest([_ch(False)], [_m(11.396, 1400.0, 4162.3)], now_ms=t0)
+    store.ingest([_ch(False)], [_m(0.0, 0.0, 0.0)], now_ms=t0 + 1000)
+    store.ingest([_ch(False)], [_m(11.390, 1400.0, 4162.7)], now_ms=t0 + 2000)
+    pts = store.snapshot(now_ms=t0 + 2000)["channels"]["0"]["points"]
+    assert len(pts) == 3
+    assert pts[1]["v"] == 11.396
+    assert pts[1]["i"] == 1400.0
+    assert pts[1]["c"] == 4162.3
+    assert pts[2]["v"] == 11.390
+    assert pts[2]["i"] == 1400.0
+
+
+def test_repeated_zero_needles_stay_off_the_axis():
+    store = LiveSeriesStore()
+    t0 = 20_000
+    v, i, c = 11.4, 1400.0, 4000.0
+    for n in range(40):
+        if n > 0 and n % 7 == 0:
+            store.ingest([_ch(False)], [_m(0.0, 0.0, 0.0)], now_ms=t0 + n * 1000)
+        else:
+            c += 0.4
+            store.ingest([_ch(False)], [_m(v, i, c)], now_ms=t0 + n * 1000)
+    pts = store.snapshot(now_ms=t0 + 39_000)["channels"]["0"]["points"]
+    assert len(pts) == 40
+    for p in pts:
+        assert p["v"] is not None and p["v"] >= 1.2
+        assert p["i"] is not None and abs(p["i"]) >= 120
+        assert p["c"] is not None and p["c"] >= 30
+
+
+def test_scrub_fills_interior_zero_needles():
+    from app.services.live_series import scrub_points
+
+    points = [
+        (0, 0.0, 11.4, 1400.0, 100.0),
+        (1, 1.0, 0.0, 0.0, 0.0),
+        (2, 2.0, 11.4, 1400.0, 100.4),
+        (3, 3.0, 0.0, 0.0, 0.0),
+        (4, 4.0, 11.4, 1400.0, 100.8),
+    ]
+    cleaned = scrub_points(points)
+    assert cleaned[1][2] == 11.4
+    assert cleaned[1][3] == 1400.0
+    assert cleaned[3][2] == 11.4
+    assert cleaned[3][3] == 1400.0
+
+
+def test_real_voltage_step_accepted_after_confirms():
+    store = LiveSeriesStore()
+    t0 = 30_000
+    store.ingest([_ch(False)], [_m(12.6, 200.0, 50.0)], now_ms=t0)
+    for n in range(1, 5):
+        store.ingest([_ch(False)], [_m(4.2, 200.0, 50.0 + n)], now_ms=t0 + n * 1000)
+    pts = store.snapshot(now_ms=t0 + 4000)["channels"]["0"]["points"]
+    # First sample 12.6; next two held; third matching tick accepts 4.2.
+    assert pts[0]["v"] == 12.6
+    assert pts[1]["v"] == 12.6
+    assert pts[2]["v"] == 12.6
+    assert pts[3]["v"] == 4.2
+    assert pts[4]["v"] == 4.2
+
+
 def test_maxlen_caps_at_six_hours_of_1hz():
     store = LiveSeriesStore()
     t0 = 3_000_000
     for n in range(MAX_POINTS + 25):
-        store.ingest([_ch(False)], [_m(1.0, float(n), n)], now_ms=t0 + n * 1000)
+        store.ingest([_ch(False)], [_m(3.7, 500.0, 100.0)], now_ms=t0 + n * 1000)
     pts = store.snapshot(now_ms=t0 + (MAX_POINTS + 24) * 1000)["channels"]["0"]["points"]
     assert len(pts) == MAX_POINTS
-    assert pts[0]["i"] == 25
-    assert pts[-1]["i"] == MAX_POINTS + 24
+    assert pts[0]["t"] == 25.0
+    assert pts[-1]["t"] == float(MAX_POINTS + 24)
