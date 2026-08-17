@@ -81,25 +81,17 @@ Protocol PDFs: [8500-2 chapter 18](https://media.elv.com/file/59066_69326_alc850
 - **Backend:** Python 3.11+, FastAPI, pyserial, reportlab
 - **Frontend:** Vite, React, TypeScript, uPlot
 - **Data:** files under `data/` (no SQL)
-- **Run options:** local venv, Docker Compose, or systemd under `/opt/alc`
+- **Run options:** local venv, or systemd under `/opt/alc`
 
 ---
 
-## AI install prompts
+## AI install prompt
 
-Paste one of these into **Cursor**, **OpenCode**, or a similar agent. The agent **always** refreshes `main` from GitHub and runs a full install/reinstall (rebuild + restart) — even if an older install already exists.
+Paste this into **Cursor**, **OpenCode**, or a similar agent. The agent **always** refreshes `main` from GitHub and runs a full systemd install/reinstall (rebuild + restart) — even if an older install already exists.
 
-### Systemd (`/opt/alc`)
-
-Autostart on boot via `elv-alc-dashboard.service`.
+Autostart on boot via `elv-alc-dashboard.service`. Host **Herunterfahren** from the UI needs this path (polkit), not a container.
 
 → Copy from [installer/ai-install-prompt.md](installer/ai-install-prompt.md)
-
-### Docker Compose
-
-Build and run the container from the repo (`docker compose up`).
-
-→ Copy from [installer/ai-install-prompt-docker.md](installer/ai-install-prompt-docker.md)
 
 ---
 
@@ -110,7 +102,6 @@ Build and run the container from the repo (`docker compose up`).
 | Path | Needs |
 |------|--------|
 | Local / systemd | Python 3.11+, Node.js 20+, `dialout` for real hardware |
-| Docker | Docker Engine + Compose plugin (Linux host for USB/serial) |
 
 ```bash
 sudo usermod -aG dialout $USER   # real hardware; log out and back in afterwards
@@ -133,26 +124,6 @@ cd frontend && npm install && npm run build && cd ..
 Open [http://127.0.0.1:8080](http://127.0.0.1:8080).
 
 Default [`config.yaml`](config.yaml): ALC 8500-2 + **simulator**. Without hardware keep `serial_port` empty and `simulator: true`.
-
-### Docker Compose
-
-```bash
-git clone https://github.com/oe3gwu/ELV-ALC-Dashboard.git
-cd ELV-ALC-Dashboard
-docker compose up --build
-```
-
-Open [http://127.0.0.1:8080](http://127.0.0.1:8080).  
-`config.yaml` and `data/` are mounted from the host.
-
-| Command | Effect |
-|---------|--------|
-| `docker compose up --build` | Build and start (foreground) |
-| `docker compose up -d --build` | Detached |
-| `docker compose logs -f` | Follow logs |
-| `docker compose down` | Stop |
-
-Image name: `elv-alc-dashboard:local` (built locally; no registry required).
 
 ### systemd (`/opt/alc`, autostart)
 
@@ -198,9 +169,8 @@ sudo udevadm control --reload-rules && sudo udevadm trigger
 ```
 
 3. In Settings / `config.yaml`: `simulator: false`, `serial_port` e.g. `/dev/elv-alc` or `/dev/ttyUSB0` (empty = auto-detect).
-4. **Docker only:** uncomment `devices:` + `group_add: [dialout]` in [`docker-compose.yml`](docker-compose.yml) and match the device path.
-5. Restart the app / compose / systemd service.
-6. For 8500-2, use **Battery database → Import from ALC** if needed.
+4. Restart the app / systemd service.
+5. For 8500-2, use **Battery database → Import from ALC** if needed.
 
 Serial defaults: **8500-2 → 38400 8E1**; **7000 → 9600 8E1**. ALC 7000 is RS-232 (no ELV USB ID) — use the adapter node.
 
@@ -212,7 +182,7 @@ Serial defaults: **8500-2 → 38400 8E1**; **7000 → 9600 8E1**. ALC 7000 is RS
 
 | Key | Meaning |
 |-----|---------|
-| `host` / `port` | HTTP bind (default `127.0.0.1:8080`; Docker/systemd listen on `0.0.0.0`) |
+| `host` / `port` | HTTP bind (default `127.0.0.1:8080`; systemd listens on `0.0.0.0`) |
 | `device_model` | Profile id, e.g. `alc8500_2_expert` or `alc7000_expert` |
 | `serial_port` | Free text, e.g. `/dev/ttyUSB0`, `/dev/ttyS0`; empty = auto-detect |
 | `baudrate` | Default `38400` (8500-2); 7000 uses profile baudrate 9600 |
@@ -264,13 +234,11 @@ ELV-ALC-Dashboard/
 ├── frontend/             # React UI (Vite)
 ├── data/                 # logger archive, battery-db.json
 ├── docs/                 # protocol, feature matrix, screenshots
-├── installer/            # AI install prompts (systemd + Docker)
+├── installer/            # AI systemd install prompt
 ├── scripts/              # run.sh, install-systemd.sh, uninstall-systemd.sh
 ├── systemd/              # elv-alc-dashboard.service
 ├── polkit/               # allow service user to power off the host
 ├── udev/                 # 99-elv-alc.rules
-├── Dockerfile
-├── docker-compose.yml
 └── config.yaml
 ```
 

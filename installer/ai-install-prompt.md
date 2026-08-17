@@ -2,14 +2,12 @@
 
 Copy the block below into **Cursor**, **OpenCode**, or a similar coding agent. It **always** fetches a fresh checkout of this repo, then runs a full systemd install/reinstall to `/opt/alc` (rebuild + restart).
 
-For Docker Compose instead, see [ai-install-prompt-docker.md](ai-install-prompt-docker.md).
-
 ---
 
 ## Prompt (copy from here)
 
 ```
-Install or reinstall the ELV ALC Dashboard on this Linux machine using the project's systemd installer (variant 1 → /opt/alc).
+Install or reinstall the ELV ALC Dashboard on this Linux machine using the project's systemd installer (/opt/alc).
 
 Goals:
 - Fresh source from GitHub main (do not reuse a stale local tree)
