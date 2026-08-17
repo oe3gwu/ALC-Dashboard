@@ -1,4 +1,4 @@
-"""In-process live U/I/C series — last 6 hours per channel, RAM only."""
+"""In-process live U/I/C series — last 24 hours per channel, RAM only."""
 
 from __future__ import annotations
 
@@ -8,8 +8,8 @@ import time
 from collections import deque
 from typing import Any, Literal
 
-MAX_AGE_S = 6 * 3600
-MAX_POINTS = 6 * 3600  # 1 Hz cap
+MAX_AGE_S = 24 * 3600
+MAX_POINTS = 24 * 3600  # 1 Hz cap
 _MAX_AGE_MS = MAX_AGE_S * 1000
 
 MetricKey = Literal["v", "i", "c"]

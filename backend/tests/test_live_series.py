@@ -1,4 +1,4 @@
-"""In-process 6h live series ring buffer."""
+"""In-process 24h live series ring buffer."""
 
 from __future__ import annotations
 
@@ -88,7 +88,7 @@ def test_age_prune_keeps_recent_tail():
     pts = snap["points"]
     assert len(pts) == 1
     assert pts[0]["v"] == 3.2
-    # Gap > 6 h dropped the old series; a still-running channel starts a new t0.
+    # Gap > 24 h dropped the old series; a still-running channel starts a new t0.
     assert snap["t0"] == later
     assert pts[0]["t"] == 0.0
 
@@ -192,12 +192,25 @@ def test_scrub_fills_trickle_current_dips():
     assert abs((cleaned[4][3] or 0) - 93.5) < 8
 
 
-def test_maxlen_caps_at_six_hours_of_1hz():
-    store = LiveSeriesStore()
-    t0 = 3_000_000
-    for n in range(MAX_POINTS + 25):
-        store.ingest([_ch(False)], [_m(3.7, 500.0, 100.0)], now_ms=t0 + n * 1000)
-    pts = store.snapshot(now_ms=t0 + (MAX_POINTS + 24) * 1000)["channels"]["0"]["points"]
-    assert len(pts) == MAX_POINTS
-    assert pts[0]["t"] == 25.0
-    assert pts[-1]["t"] == float(MAX_POINTS + 24)
+def test_retention_is_24_hours():
+    assert MAX_AGE_S == 24 * 3600
+    assert MAX_POINTS == 24 * 3600
+
+
+def test_maxlen_caps_ring_buffer():
+    import app.services.live_series as ls
+
+    original = ls.MAX_POINTS
+    ls.MAX_POINTS = 50
+    try:
+        store = LiveSeriesStore()
+        t0 = 3_000_000
+        cap = ls.MAX_POINTS
+        for n in range(cap + 25):
+            store.ingest([_ch(False)], [_m(3.7, 500.0, 100.0)], now_ms=t0 + n * 1000)
+        pts = store.snapshot(now_ms=t0 + (cap + 24) * 1000)["channels"]["0"]["points"]
+        assert len(pts) == cap
+        assert pts[0]["t"] == 25.0
+        assert pts[-1]["t"] == float(cap + 24)
+    finally:
+        ls.MAX_POINTS = original

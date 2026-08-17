@@ -549,7 +549,7 @@ def live() -> dict[str, Any]:
 
 @app.get("/api/live/series")
 def live_series_get() -> dict[str, Any]:
-    """Full in-process U/I/C history (up to 6 h). Independent of client host/origin."""
+    """Full in-process U/I/C history (up to 24 h). Independent of client host/origin."""
     return live_series.snapshot()
 
 
