@@ -7,6 +7,7 @@ import { useChannelSeries } from '../hooks/useChannelSeries'
 import { useCapabilities } from '../capabilities'
 import { useLive } from '../live'
 import { useLocale } from '../locale'
+import { clearSeries } from '../liveSeries'
 import { stageBadgeClass } from '../stageBadge'
 
 function fmt(n: number | null | undefined, digits = 3) {
@@ -30,6 +31,7 @@ function ChannelCard({ ch }: { ch: number }) {
     setStopping(true)
     try {
       await api.activity(ch, true)
+      clearSeries(ch)
       await refresh()
     } finally {
       setStopping(false)

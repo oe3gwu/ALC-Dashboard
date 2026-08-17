@@ -6,6 +6,7 @@ import { LiveChart } from '../components/LiveChart'
 import { useChannelSeries } from '../hooks/useChannelSeries'
 import { useLive } from '../live'
 import { useLocale } from '../locale'
+import { clearSeries } from '../liveSeries'
 
 export function ChannelDetail() {
   const { id } = useParams()
@@ -25,6 +26,7 @@ export function ChannelDetail() {
 
   const onStop = async () => {
     await api.activity(ch, true)
+    clearSeries(ch)
     await refresh()
   }
 
