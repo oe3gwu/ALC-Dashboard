@@ -27,6 +27,10 @@ type MetricKey = 'v' | 'i' | 'c'
 type MetricPending = { value: number | null; confirms: number }
 type PendingState = Partial<Record<MetricKey, MetricPending>>
 const pendingByChannel = new Map<number, PendingState>()
+/** After Stop, do not start a new series until the channel is seen idle. */
+const holdOffChannels = new Set<number>()
+const readoutHold = new Map<number, PendingSample>()
+const readoutPending = new Map<number, PendingState>()
 
 const GLITCH_V_ABS = 0.15 // V
 const GLITCH_V_REL = 0.04
@@ -88,12 +92,19 @@ function clearChannel(channel: number, silent = false): void {
   if (!silent) notify()
 }
 
-export function clearSeries(channel: number): void {
+export function clearSeries(channel: number, holdOff = false): void {
+  if (holdOff) holdOffChannels.add(channel)
+  else holdOffChannels.delete(channel)
+  readoutHold.delete(channel)
+  readoutPending.delete(channel)
   clearChannel(channel)
 }
 
 export function clearAllSeries(): void {
   pendingByChannel.clear()
+  holdOffChannels.clear()
+  readoutHold.clear()
+  readoutPending.clear()
   if (seriesByChannel.size === 0) return
   seriesByChannel.clear()
   notify()
@@ -107,6 +118,7 @@ export function replaceFromServer(channels: Record<string, ServerChannelSeries> 
     for (const [key, value] of Object.entries(channels)) {
       const ch = Number(key)
       if (!Number.isFinite(ch) || !value?.points || !Array.isArray(value.points)) continue
+      if (holdOffChannels.has(ch)) continue
       const points = holdCollapses(scrubPoints(value.points.filter((p) => p && typeof p.t === 'number')))
       if (points.length === 0) continue
       seriesByChannel.set(ch, {
@@ -343,25 +355,22 @@ function resolveMetric(
   return raw
 }
 
-/**
- * Hold abrupt metrics until enough matching ticks (filters multi-second needles).
- * Metrics are independent so a current glitch does not freeze voltage/capacity.
- */
-function resolveSample(
+function resolveSampleWith(
+  pendingMap: Map<number, PendingState>,
   channel: number,
-  prev: SeriesPoint | null,
+  prev: PendingSample | SeriesPoint | null,
   incoming: PendingSample,
 ): PendingSample {
   const raw = sanitizeRaw(incoming)
   if (!prev) {
-    pendingByChannel.delete(channel)
+    pendingMap.delete(channel)
     return raw
   }
 
-  let pending = pendingByChannel.get(channel)
+  let pending = pendingMap.get(channel)
   if (!pending) {
     pending = {}
-    pendingByChannel.set(channel, pending)
+    pendingMap.set(channel, pending)
   }
 
   const sample: PendingSample = {
@@ -371,10 +380,54 @@ function resolveSample(
   }
 
   if (Object.keys(pending).length === 0) {
-    pendingByChannel.delete(channel)
+    pendingMap.delete(channel)
   }
 
   return sample
+}
+
+/**
+ * Hold abrupt metrics until enough matching ticks (filters multi-second needles).
+ * Metrics are independent so a current glitch does not freeze voltage/capacity.
+ */
+function resolveSample(
+  channel: number,
+  prev: SeriesPoint | null,
+  incoming: PendingSample,
+): PendingSample {
+  return resolveSampleWith(pendingByChannel, channel, prev, incoming)
+}
+
+/** Smooth live U/I/C readouts with the same hold/scrub rules as the chart. */
+export function smoothLiveMeasurements(
+  channels: ChannelParams[],
+  measurements: Measurement[],
+): Measurement[] {
+  const chList = channels.map((c, idx) => ({ ...c, channel: idx }))
+  const measList =
+    measurements.length === chList.length
+      ? measurements.map((m, idx) => ({ ...m, channel: idx }))
+      : measurements
+
+  return measList.map((m) => {
+    const ch = m.channel
+    const c = chList.find((x) => x.channel === ch)
+    if (isIdle(c)) {
+      readoutHold.delete(ch)
+      readoutPending.delete(ch)
+      return m
+    }
+    const incoming = { v: m.voltage_V ?? null, i: m.current_mA ?? null, c: m.capacity_mAh ?? null }
+    const prev = readoutHold.get(ch) ?? null
+    const sample = resolveSampleWith(readoutPending, ch, prev, incoming)
+    readoutHold.set(ch, sample)
+    return {
+      ...m,
+      voltage_V: sample.v,
+      current_mA: sample.i,
+      capacity_mAh: sample.c,
+    }
+  })
 }
 
 function appendPoint(series: ChannelSeries, now: number, sample: PendingSample): void {
@@ -415,7 +468,11 @@ function sampleTick(): void {
 
   for (const chParams of channelsSnap) {
     const ch = chParams.channel
-    if (isIdle(chParams)) continue
+    if (isIdle(chParams)) {
+      holdOffChannels.delete(ch)
+      continue
+    }
+    if (holdOffChannels.has(ch)) continue
 
     const m = measurementsSnap.find((x) => x.channel === ch)
     let series = seriesByChannel.get(ch)

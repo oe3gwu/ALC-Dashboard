@@ -1,6 +1,6 @@
 import { createContext, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
 import { api, liveSocket, type ChannelParams, type LivePayload, type Measurement } from './api'
-import { replaceFromServer, updateLiveSnapshot } from './liveSeries'
+import { replaceFromServer, smoothLiveMeasurements, updateLiveSnapshot } from './liveSeries'
 import { createStageStabilizeState, stabilizeChannels } from './stageStabilize'
 
 type LiveCtx = {
@@ -29,6 +29,7 @@ export function LiveProvider({ children }: { children: ReactNode }) {
   const [backendOnline, setBackendOnline] = useState(true)
   const channelsRef = useRef(channels)
   const measurementsRef = useRef(measurements)
+  const rawMeasurementsRef = useRef<Measurement[]>([])
   const stageStateRef = useRef(createStageStabilizeState())
   const lastGoodAtRef = useRef(Date.now())
 
@@ -52,13 +53,15 @@ export function LiveProvider({ children }: { children: ReactNode }) {
       setChannels(stable)
     }
     if (data.measurements) {
-      measurementsRef.current = data.measurements
-      setMeasurements(data.measurements)
+      rawMeasurementsRef.current = data.measurements
+      const smoothed = smoothLiveMeasurements(channelsRef.current, data.measurements)
+      measurementsRef.current = smoothed
+      setMeasurements(smoothed)
     }
     if (data.temperatures) setTemperatures(data.temperatures)
     if (data.connection) setConnection(data.connection)
     if (data.channels || data.measurements) {
-      updateLiveSnapshot(channelsRef.current, measurementsRef.current)
+      updateLiveSnapshot(channelsRef.current, rawMeasurementsRef.current)
     }
   }
 
@@ -144,12 +147,12 @@ export function LiveProvider({ children }: { children: ReactNode }) {
       ensureConnected()
       void hydrateSeriesRef.current()
       void refreshRef.current()
-      updateLiveSnapshot(channelsRef.current, measurementsRef.current)
+      updateLiveSnapshot(channelsRef.current, rawMeasurementsRef.current)
     }
 
     const onPageHide = () => {
       // Close socket but do NOT mark unmounted (bfcache / tab sleep).
-      updateLiveSnapshot(channelsRef.current, measurementsRef.current)
+      updateLiveSnapshot(channelsRef.current, rawMeasurementsRef.current)
       drop()
     }
 

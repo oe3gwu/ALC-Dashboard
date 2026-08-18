@@ -275,14 +275,22 @@ class LiveSeriesStore:
     def __init__(self) -> None:
         self._lock = threading.Lock()
         self._channels: dict[int, _ChannelSeries] = {}
+        # After Stop, skip ingest until the channel is seen idle (avoids 1–2 leftover ticks).
+        self._hold_off: set[int] = set()
 
-    def clear(self, channel: int) -> None:
+    def clear(self, channel: int, *, hold_off: bool = False) -> None:
         with self._lock:
-            self._channels.pop(int(channel), None)
+            ch = int(channel)
+            self._channels.pop(ch, None)
+            if hold_off:
+                self._hold_off.add(ch)
+            else:
+                self._hold_off.discard(ch)
 
     def clear_all(self) -> None:
         with self._lock:
             self._channels.clear()
+            self._hold_off.clear()
 
     def ingest(
         self,
@@ -305,6 +313,10 @@ class LiveSeriesStore:
 
             for c in ch_list:
                 ch = int(c["channel"])
+                if ch in self._hold_off:
+                    if is_idle_channel(c):
+                        self._hold_off.discard(ch)
+                    continue
                 if is_idle_channel(c):
                     continue
                 m = meas_by_ch.get(ch, {})

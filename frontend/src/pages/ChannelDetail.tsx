@@ -26,7 +26,7 @@ export function ChannelDetail() {
 
   const onStop = async () => {
     await api.activity(ch, true)
-    clearSeries(ch)
+    clearSeries(ch, true)
     await refresh()
   }
 

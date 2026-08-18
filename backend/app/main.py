@@ -582,7 +582,7 @@ def activity(channel: int, body: ActivityRequest) -> dict[str, Any]:
     with manager.with_client():
         state = client.set_activity(channel, stop=body.stop)
     if body.stop:
-        live_series.clear(channel)
+        live_series.clear(channel, hold_off=True)
     return state.to_dict()
 
 

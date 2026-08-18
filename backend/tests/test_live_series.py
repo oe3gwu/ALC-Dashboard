@@ -61,6 +61,40 @@ def test_clear_drops_channel():
     assert "1" in snap["channels"]
 
 
+def test_hold_off_after_stop_ignores_running_ticks():
+    store = LiveSeriesStore()
+    t0 = 50_000
+    store.ingest([_ch(False)], [_m(14.1, 90.0, 5000)], now_ms=t0)
+    store.clear(0, hold_off=True)
+    store.ingest([_ch(False)], [_m(13.9, 6.2, 5160)], now_ms=t0 + 1000)
+    store.ingest([_ch(False)], [_m(13.9, 6.2, 5160)], now_ms=t0 + 2000)
+    assert store.snapshot(now_ms=t0 + 2000)["channels"] == {}
+
+
+def test_hold_off_lifts_after_idle_then_new_run_samples():
+    store = LiveSeriesStore()
+    t0 = 60_000
+    store.ingest([_ch(False)], [_m(14.1, 90.0, 5000)], now_ms=t0)
+    store.clear(0, hold_off=True)
+    store.ingest([_ch(True)], [_m(13.8, 0.0, 0.0)], now_ms=t0 + 1000)
+    store.ingest([_ch(False)], [_m(12.0, 1400.0, 10.0)], now_ms=t0 + 2000)
+    pts = store.snapshot(now_ms=t0 + 2000)["channels"]["0"]["points"]
+    assert len(pts) == 1
+    assert pts[0]["v"] == 12.0
+    assert pts[0]["i"] == 1400.0
+
+
+def test_clear_without_hold_off_allows_immediate_ingest():
+    store = LiveSeriesStore()
+    t0 = 70_000
+    store.ingest([_ch(False)], [_m(4.0, 200.0, 1)], now_ms=t0)
+    store.clear(0)
+    store.ingest([_ch(False)], [_m(4.1, 200.0, 2)], now_ms=t0 + 1000)
+    pts = store.snapshot(now_ms=t0 + 1000)["channels"]["0"]["points"]
+    assert len(pts) == 1
+    assert pts[0]["v"] == 4.1
+
+
 def test_empty_snapshot_keeps_series():
     store = LiveSeriesStore()
     t0 = 8_000

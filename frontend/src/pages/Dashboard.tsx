@@ -31,7 +31,7 @@ function ChannelCard({ ch }: { ch: number }) {
     setStopping(true)
     try {
       await api.activity(ch, true)
-      clearSeries(ch)
+      clearSeries(ch, true)
       await refresh()
     } finally {
       setStopping(false)
