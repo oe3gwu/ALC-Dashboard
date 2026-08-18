@@ -30,7 +30,10 @@ GLITCH_C_ABS = 20.0  # mAh
 GLITCH_C_REL = 0.03
 GLITCH_C_FLOOR = 5.0
 CONFIRM_DEFAULT = 3
-CAPACITY_ABSURD = 15000.0
+CAPACITY_ABSURD = 200000.0  # 200 Ah — wire garbage, not a 1 s process step
+# Capacity barely moves at 1 Hz (~mAh/s). Jumps beyond this are serial spikes, never accept.
+CAPACITY_JUMP_ABS = 80.0
+CAPACITY_JUMP_REL = 0.2
 SCRUB_RUN_MAX = 20
 STABLE_I_MA = 20.0  # trickle/top-off is often 50–100 mA; 120 hid those plateaus
 
@@ -97,8 +100,21 @@ def is_stable_value(value: float | None, key: MetricKey) -> bool:
     return value >= 1.2
 
 
+def is_implausible_capacity_jump(prev: float | None, nxt: float | None) -> bool:
+    """True if C changed faster than any real 1 Hz process (e.g. 5000 → 1_000_000)."""
+    if prev is None or not math.isfinite(prev):
+        return False
+    if nxt is None or not math.isfinite(nxt):
+        return is_stable_value(prev, "c")
+    return abs(nxt - prev) >= max(CAPACITY_JUMP_ABS, CAPACITY_JUMP_REL * abs(prev))
+
+
 def is_metric_collapse(key: MetricKey, prev: float | None, nxt: float | None) -> bool:
-    return is_stable_value(prev, key) and is_collapsed_value(nxt, key)
+    if is_stable_value(prev, key) and is_collapsed_value(nxt, key):
+        return True
+    if key == "c":
+        return is_implausible_capacity_jump(prev, nxt)
+    return False
 
 
 def near_metric(a: float | None, b: float | None, key: MetricKey) -> bool:

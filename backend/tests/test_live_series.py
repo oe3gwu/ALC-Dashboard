@@ -161,6 +161,33 @@ def test_repeated_zero_needles_stay_off_the_axis():
         assert p["c"] is not None and p["c"] >= 30
 
 
+def test_capacity_million_spike_never_accepted():
+    """Serial C garbage (1e6 mAh for several seconds) must not pass 3-tick confirm."""
+    store = LiveSeriesStore()
+    t0 = 80_000
+    store.ingest([_ch(False)], [_m(14.16, 93.5, 5160.4)], now_ms=t0)
+    for n in range(1, 8):
+        store.ingest([_ch(False)], [_m(14.16, 93.5, 1_000_000.0)], now_ms=t0 + n * 1000)
+    store.ingest([_ch(False)], [_m(14.16, 93.5, 5162.0)], now_ms=t0 + 8000)
+    pts = store.snapshot(now_ms=t0 + 8000)["channels"]["0"]["points"]
+    assert len(pts) == 9
+    for p in pts:
+        assert p["c"] is not None
+        assert abs(p["c"] - 5160.4) < 5 or abs(p["c"] - 5162.0) < 1
+        assert p["c"] < 10000
+
+
+def test_capacity_mid_range_spike_never_accepted():
+    store = LiveSeriesStore()
+    t0 = 90_000
+    store.ingest([_ch(False)], [_m(14.0, 100.0, 5000.0)], now_ms=t0)
+    for n in range(1, 6):
+        store.ingest([_ch(False)], [_m(14.0, 100.0, 12000.0)], now_ms=t0 + n * 1000)
+    pts = store.snapshot(now_ms=t0 + 5000)["channels"]["0"]["points"]
+    for p in pts:
+        assert p["c"] == 5000.0
+
+
 def test_scrub_fills_interior_zero_needles():
     from app.services.live_series import scrub_points
 

@@ -44,7 +44,10 @@ const GLITCH_C_FLOOR = 5
 /** Confirms before accepting a non-collapse abrupt step (ramps, stage changes). */
 const CONFIRM_DEFAULT = 3
 /** Absolute capacity above this is treated as wire garbage. */
-const CAPACITY_ABSURD = 15000
+const CAPACITY_ABSURD = 200000 // 200 Ah — wire garbage, not a 1 s process step
+/** Capacity barely moves at 1 Hz; larger jumps are serial spikes and are never accepted. */
+const CAPACITY_JUMP_ABS = 80
+const CAPACITY_JUMP_REL = 0.2
 /** Scrub collapse/spike runs up to this many seconds between two stable neighbors. */
 const SCRUB_RUN_MAX = 20
 /** Trickle/top-off is often 50–100 mA; 120 mA hid those plateaus from collapse-hold. */
@@ -208,14 +211,26 @@ export function isStableValue(value: number | null | undefined, key: MetricKey):
 }
 
 /**
- * Stable → ~0/null collapse (U/I/C needles). Never accept into the series while running.
+ * Stable → ~0/null, or a physically impossible capacity jump (e.g. 5 Ah → 1000 Ah).
+ * Never accept into the series / readout while running.
  */
+export function isImplausibleCapacityJump(
+  prev: number | null | undefined,
+  next: number | null | undefined,
+): boolean {
+  if (prev == null || !Number.isFinite(prev)) return false
+  if (next == null || !Number.isFinite(next)) return isStableValue(prev, 'c')
+  return Math.abs(next - prev) >= Math.max(CAPACITY_JUMP_ABS, CAPACITY_JUMP_REL * Math.abs(prev))
+}
+
 export function isMetricCollapse(
   key: MetricKey,
   prev: number | null | undefined,
   next: number | null | undefined,
 ): boolean {
-  return isStableValue(prev, key) && isCollapsedValue(next, key)
+  if (isStableValue(prev, key) && isCollapsedValue(next, key)) return true
+  if (key === 'c') return isImplausibleCapacityJump(prev, next)
+  return false
 }
 
 export function isCurrentCollapse(prevI: number | null | undefined, nextI: number | null | undefined): boolean {
@@ -412,12 +427,23 @@ export function smoothLiveMeasurements(
   return measList.map((m) => {
     const ch = m.channel
     const c = chList.find((x) => x.channel === ch)
-    if (isIdle(c)) {
-      readoutHold.delete(ch)
-      readoutPending.delete(ch)
-      return m
-    }
     const incoming = { v: m.voltage_V ?? null, i: m.current_mA ?? null, c: m.capacity_mAh ?? null }
+    if (isIdle(c)) {
+      const raw = sanitizeRaw(incoming)
+      const hold = readoutHold.get(ch)
+      readoutPending.delete(ch)
+      if (hold) {
+        const sample: PendingSample = {
+          v: raw.v ?? hold.v,
+          i: raw.i,
+          c: isCollapsedValue(raw.c, 'c') || isImplausibleCapacityJump(hold.c, raw.c) ? hold.c : raw.c,
+        }
+        readoutHold.set(ch, sample)
+        return { ...m, voltage_V: sample.v, current_mA: sample.i, capacity_mAh: sample.c }
+      }
+      readoutHold.delete(ch)
+      return { ...m, voltage_V: raw.v, current_mA: raw.i, capacity_mAh: raw.c }
+    }
     const prev = readoutHold.get(ch) ?? null
     const sample = resolveSampleWith(readoutPending, ch, prev, incoming)
     readoutHold.set(ch, sample)
