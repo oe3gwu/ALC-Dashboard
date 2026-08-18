@@ -1,6 +1,6 @@
-/** Named UI palettes. Light/dark mode is orthogonal (see theme.tsx). */
+/** Named UI palettes. Light/dark mode is orthogonal except dark-only packs. */
 
-export type ThemePackId = 'elv' | 'scch' | 'dracula'
+export type ThemePackId = 'elv' | 'scch' | 'jerrec'
 
 export type ThemeMode = 'dark' | 'light'
 
@@ -13,9 +13,11 @@ export type ThemePack = {
   logoAlt?: string
   /** Preferred mode when selecting this pack. */
   defaultMode: ThemeMode
+  /** If true, light mode is unavailable for this pack. */
+  darkOnly?: boolean
 }
 
-/** Built-in packs. “ELV” AdminLTE; “SCCH” Password-Pusher lime; “Dracula” / Alucard. */
+/** Built-in packs. “ELV” AdminLTE; “SCCH” Password-Pusher lime; “Jerrec” dark-only. */
 export const THEME_PACKS: readonly ThemePack[] = [
   {
     id: 'elv',
@@ -32,27 +34,32 @@ export const THEME_PACKS: readonly ThemePack[] = [
     defaultMode: 'light',
   },
   {
-    id: 'dracula',
-    label: 'Dracula',
+    id: 'jerrec',
+    label: 'Jerrec',
     logoSrc: '/jerrec-logo.png',
-    logoAlt: 'Dracula',
+    logoAlt: 'Jerrec',
     defaultMode: 'dark',
+    darkOnly: true,
   },
 ]
 
 export const DEFAULT_THEME_PACK: ThemePackId = 'elv'
 
 export function isThemePackId(v: string | null | undefined): v is ThemePackId {
-  return v === 'elv' || v === 'scch' || v === 'dracula'
+  return v === 'elv' || v === 'scch' || v === 'jerrec'
 }
 
 /** Map legacy pack ids from older builds. */
 export function normalizeThemePackId(v: string | null | undefined): ThemePackId | null {
-  if (v === 'jerrec') return 'dracula'
+  if (v === 'dracula') return 'jerrec'
   if (isThemePackId(v)) return v
   return null
 }
 
 export function getThemePack(id: ThemePackId): ThemePack {
   return THEME_PACKS.find((p) => p.id === id) ?? THEME_PACKS[0]
+}
+
+export function packIsDarkOnly(id: ThemePackId): boolean {
+  return Boolean(getThemePack(id).darkOnly)
 }

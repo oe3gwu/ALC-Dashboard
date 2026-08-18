@@ -4,6 +4,7 @@ import {
   THEME_PACKS,
   getThemePack,
   normalizeThemePackId,
+  packIsDarkOnly,
   type ThemeMode,
   type ThemePackId,
 } from './themePacks'
@@ -41,6 +42,7 @@ function detectOsTheme(): ThemeMode {
 }
 
 function readStoredMode(pack: ThemePackId): ThemeMode {
+  if (packIsDarkOnly(pack)) return 'dark'
   try {
     const v = localStorage.getItem(MODE_KEY)
     if (v === 'light' || v === 'dark') return v
@@ -62,8 +64,9 @@ function readStoredPack(): ThemePackId {
 
 function applyAppearance(pack: ThemePackId, mode: ThemeMode) {
   const root = document.documentElement
+  const resolved = packIsDarkOnly(pack) ? 'dark' : mode
   root.dataset.themePack = pack
-  root.dataset.theme = mode
+  root.dataset.theme = resolved
 }
 
 export function ThemeProvider({ children }: { children: ReactNode }) {
@@ -76,6 +79,10 @@ export function ThemeProvider({ children }: { children: ReactNode }) {
   })
 
   useEffect(() => {
+    if (packIsDarkOnly(themePack) && theme !== 'dark') {
+      setThemeState('dark')
+      return
+    }
     applyAppearance(themePack, theme)
     try {
       localStorage.setItem(MODE_KEY, theme)
@@ -88,12 +95,21 @@ export function ThemeProvider({ children }: { children: ReactNode }) {
   const value = useMemo(
     () => ({
       theme,
-      setTheme: setThemeState,
-      toggle: () => setThemeState((t) => (t === 'dark' ? 'light' : 'dark')),
+      setTheme: (t: ThemeMode) => {
+        if (packIsDarkOnly(themePack)) {
+          setThemeState('dark')
+          return
+        }
+        setThemeState(t)
+      },
+      toggle: () => {
+        if (packIsDarkOnly(themePack)) return
+        setThemeState((t) => (t === 'dark' ? 'light' : 'dark'))
+      },
       themePack,
       setThemePack: (id: ThemePackId) => {
         setThemePackState(id)
-        setThemeState(getThemePack(id).defaultMode)
+        setThemeState(packIsDarkOnly(id) ? 'dark' : getThemePack(id).defaultMode)
       },
       packs: THEME_PACKS,
     }),

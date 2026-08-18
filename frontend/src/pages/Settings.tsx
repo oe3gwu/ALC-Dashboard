@@ -433,13 +433,15 @@ export function Settings() {
               ))}
             </select>
           </label>
-          <label className="field">
-            {t('set.themeMode')}
-            <select value={theme} onChange={(e) => setTheme(e.target.value as ThemeMode)}>
-              <option value="light">{t('set.themeModeLight')}</option>
-              <option value="dark">{t('set.themeModeDark')}</option>
-            </select>
-          </label>
+          {packs.find((p) => p.id === themePack)?.darkOnly ? null : (
+            <label className="field">
+              {t('set.themeMode')}
+              <select value={theme} onChange={(e) => setTheme(e.target.value as ThemeMode)}>
+                <option value="light">{t('set.themeModeLight')}</option>
+                <option value="dark">{t('set.themeModeDark')}</option>
+              </select>
+            </label>
+          )}
         </div>
       </div>
     </>

@@ -106,23 +106,25 @@ export function Layout() {
             <span className="lang-switch-knob" />
           </span>
         </button>
-        <button
-          type="button"
-          className="theme-switch"
-          data-theme={theme}
-          onClick={toggleTheme}
-          aria-label={theme === 'dark' ? t('theme.toLight') : t('theme.toDark')}
-        >
-          <span className="theme-switch-track">
-            <span className="theme-switch-icon theme-switch-sun">
-              <SunIcon />
+        {packMeta.darkOnly ? null : (
+          <button
+            type="button"
+            className="theme-switch"
+            data-theme={theme}
+            onClick={toggleTheme}
+            aria-label={theme === 'dark' ? t('theme.toLight') : t('theme.toDark')}
+          >
+            <span className="theme-switch-track">
+              <span className="theme-switch-icon theme-switch-sun">
+                <SunIcon />
+              </span>
+              <span className="theme-switch-icon theme-switch-moon">
+                <MoonIcon />
+              </span>
+              <span className="theme-switch-knob" />
             </span>
-            <span className="theme-switch-icon theme-switch-moon">
-              <MoonIcon />
-            </span>
-            <span className="theme-switch-knob" />
-          </span>
-        </button>
+          </button>
+        )}
       </header>
       <aside className="sidebar">
         <div className="sidebar-box">
