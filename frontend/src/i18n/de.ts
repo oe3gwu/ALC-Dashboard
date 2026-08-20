@@ -8,6 +8,7 @@ export const de = {
   'nav.firmware': 'Firmware',
   'nav.settings': 'Einstellungen',
   'nav.help': 'Bedienungsanleitung',
+  'nav.legal': 'Rechtliches',
 
   'theme.toLight': 'Zu Hellmodus wechseln',
   'theme.toDark': 'Zu Dunkelmodus wechseln',
@@ -268,6 +269,28 @@ export const de = {
   'set.themeModeDark': 'Dunkel',
 
   'help.title': 'Bedienungsanleitung',
+
+  'legal.title': 'Rechtliches',
+  'legal.intro':
+    'Diese Seite klärt das Verhältnis dieser unabhängigen Software zu ELV und die Nutzung des ELV-Logos.',
+  'legal.affiliationH': 'Keine Beteiligung von ELV',
+  'legal.affiliationLead':
+    'ELV ist weder an der Entwicklung noch an der späteren Wartung oder dem Support dieser Software beteiligt.',
+  'legal.affiliationP1':
+    'ELV (ELV Elektronik AG, Leer) leistet für diese Anwendung keinen technischen Support und nimmt keinen Einfluss auf den Funktionsumfang oder die Weiterentwicklung.',
+  'legal.affiliationP2':
+    'Dieses Projekt ist ein unabhängiges Vorhaben von Rainer H. Weninger (OE3GWU). Es handelt sich nicht um ein Produkt, eine Dienstleistung oder eine offizielle Veröffentlichung von ELV. ELV ist an dieser Software in keiner Weise beteiligt — weder als Auftraggeber, Partner, Herausgeber noch als Betreiber.',
+  'legal.logoH': 'Nutzung des ELV-Logos',
+  'legal.logoP1':
+    'Die Nutzung des ELV-Logos in dieser Software erfolgt mit ausdrücklicher schriftlicher Erlaubnis von ELV. Die Markenrechte am Logo verbleiben bei ELV.',
+  'legal.logoP2':
+    'Die Erlaubnis zur Logo-Nutzung begründet keine Partnerschaft, keine Produktfreigabe und keine Mitwirkung von ELV an Entwicklung, Wartung oder Support.',
+  'legal.marksH': 'Marken',
+  'legal.marksP':
+    'ELV, Voltcraft, ChargeProfessional, ALC und zugehörige Produktbezeichnungen sind Marken oder geschützte Bezeichnungen ihrer jeweiligen Inhaber. Die Nennung dient der Identifikation der unterstützten Geräte und der historischen Windows-Software. Daraus folgt keine Zugehörigkeit zu ELV.',
+  'legal.recordH': 'Schriftliche Festlegung',
+  'legal.recordP':
+    'Die genannten Punkte — insbesondere die Unabhängigkeit von ELV sowie die Erlaubnis zur Nutzung des ELV-Logos — wurden schriftlich festgehalten. Datum der schriftlichen Festlegung: 20. August 2026.',
 
   'nav.unavailable': 'Für dieses Gerät nicht verfügbar',
 } as const

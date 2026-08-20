@@ -93,6 +93,12 @@ export function Layout() {
         <strong>ALC Dashboard</strong>
       </div>
       <header className="topbar">
+        <NavLink
+          to="/legal"
+          className={({ isActive }) => (isActive ? 'topbar-legal active' : 'topbar-legal')}
+        >
+          {t('nav.legal')}
+        </NavLink>
         <button
           type="button"
           className="lang-switch"
