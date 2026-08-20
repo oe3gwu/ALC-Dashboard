@@ -253,7 +253,7 @@ Copyright (C) 2026 **Rainer Weninger**
 - **Allowed:** use, study, modify; run privately or in a company; share source with the same notices.
 - **Not allowed** without a separate commercial license: selling this software (or a service whose value is substantially this software).
 - Bundling into a much larger product with substantial independent value is a grey area under the Commons Clause FAQ — contact the copyright holder for explicit rights.
-- No rights to ELV / Voltcraft trademarks or proprietary firmware.
+- No rights to proprietary ELV/Voltcraft firmware. The ELV logo is used with written permission (see Disclaimer).
 
 ---
 
@@ -262,4 +262,10 @@ Copyright (C) 2026 **Rainer Weninger**
 Unofficial source-available control based on the publicly documented interface protocol.  
 **Use at your own risk.** Wrong parameters can damage batteries. Firmware updates only with **official ELV files** and the ELV update tool — this dashboard never flashes.
 
-ELV, Voltcraft, and ChargeProfessional are trademarks of their respective owners; this project is not affiliated with ELV/Voltcraft.
+**ELV is not involved** in the development, maintenance, or support of this software and is not affiliated with it. This is an independent project by Rainer H. Weninger (OE3GWU).
+
+The ELV logo is used with **ELV’s written permission** (recorded in writing **2026-08-20**). Trademark rights remain with ELV. Permission to use the logo is not an endorsement and does not imply ELV participation.
+
+ELV, Voltcraft, and ChargeProfessional are trademarks of their respective owners.
+
+In-app copy: **Rechtliches** / **Legal**.

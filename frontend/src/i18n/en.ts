@@ -10,6 +10,7 @@ export const en: Record<MessageKey, string> = {
   'nav.firmware': 'Firmware',
   'nav.settings': 'Settings',
   'nav.help': 'User guide',
+  'nav.legal': 'Legal',
 
   'theme.toLight': 'Switch to light mode',
   'theme.toDark': 'Switch to dark mode',
@@ -270,6 +271,28 @@ export const en: Record<MessageKey, string> = {
   'set.themeModeDark': 'Dark',
 
   'help.title': 'User guide',
+
+  'legal.title': 'Legal',
+  'legal.intro':
+    'This page states the relationship of this independent software to ELV and the use of the ELV logo.',
+  'legal.affiliationH': 'No involvement by ELV',
+  'legal.affiliationLead':
+    'ELV is not involved in the development of this software, nor in its subsequent maintenance or support.',
+  'legal.affiliationP1':
+    'ELV (ELV Elektronik AG, Leer) does not provide technical support for this application and has no influence on its features or further development.',
+  'legal.affiliationP2':
+    'This project is an independent work by Rainer H. Weninger (OE3GWU). It is not a product, service, or official publication of ELV. ELV is not affiliated with this software in any way — not as client, partner, publisher, or operator.',
+  'legal.logoH': 'Use of the ELV logo',
+  'legal.logoP1':
+    'The ELV logo is used in this software with ELV’s express written permission. Trademark rights in the logo remain with ELV.',
+  'legal.logoP2':
+    'Permission to use the logo does not constitute a partnership, product endorsement, or any involvement by ELV in development, maintenance, or support.',
+  'legal.marksH': 'Trademarks',
+  'legal.marksP':
+    'ELV, Voltcraft, ChargeProfessional, ALC and related product names are trademarks or protected designations of their respective owners. They are used to identify supported devices and the historical Windows software. That use does not imply affiliation with ELV.',
+  'legal.recordH': 'Written record',
+  'legal.recordP':
+    'The points above — in particular independence from ELV and permission to use the ELV logo — were recorded in writing. Date of that written record: 20 August 2026.',
 
   'nav.unavailable': 'Not available for this device',
 }
