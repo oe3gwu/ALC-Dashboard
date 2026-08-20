@@ -16,6 +16,7 @@ const links: { to: string; key: MessageKey; feature?: 'battery_db' | 'chemistry_
   { to: '/firmware', key: 'nav.firmware', feature: 'firmware_guided' },
   { to: '/settings', key: 'nav.settings' },
   { to: '/help', key: 'nav.help' },
+  { to: '/legal', key: 'nav.legal' },
 ]
 
 function SunIcon() {
@@ -93,12 +94,6 @@ export function Layout() {
         <strong>ALC Dashboard</strong>
       </div>
       <header className="topbar">
-        <NavLink
-          to="/legal"
-          className={({ isActive }) => (isActive ? 'topbar-legal active' : 'topbar-legal')}
-        >
-          {t('nav.legal')}
-        </NavLink>
         <button
           type="button"
           className="lang-switch"

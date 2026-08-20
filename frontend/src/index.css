@@ -501,28 +501,6 @@ a:hover { text-decoration: underline; }
   color: var(--topbar-fg);
 }
 
-.topbar-legal {
-  color: var(--topbar-fg);
-  text-decoration: none;
-  font-size: var(--type-body);
-  font-weight: 600;
-  letter-spacing: 0.01em;
-  opacity: 0.88;
-  padding: 0.2rem 0.15rem;
-  margin-right: 0.15rem;
-  white-space: nowrap;
-}
-.topbar-legal:hover,
-.topbar-legal.active {
-  color: var(--topbar-fg);
-  opacity: 1;
-  text-decoration: underline;
-}
-[data-theme-pack="scch"][data-theme="light"] .topbar-legal,
-[data-theme-pack="scch"][data-theme="light"] .topbar-legal:hover {
-  color: var(--topbar-fg);
-}
-
 .theme-switch,
 .lang-switch {
   display: inline-flex;
@@ -1022,9 +1000,7 @@ h2 {
     border-bottom: none;
     pointer-events: none;
   }
-  .topbar .theme-switch,
-  .topbar .lang-switch,
-  .topbar .topbar-legal {
+  .topbar .theme-switch {
     pointer-events: auto;
   }
   .sidebar {
