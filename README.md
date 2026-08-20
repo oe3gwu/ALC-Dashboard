@@ -268,4 +268,4 @@ The ELV logo is used with **ELV’s written permission** (recorded in writing **
 
 ELV, Voltcraft, and ChargeProfessional are trademarks of their respective owners.
 
-In-app copy: **Rechtliches** / **Legal**.
+In-app copy: top bar **Rechtliches** / **Legal**.
