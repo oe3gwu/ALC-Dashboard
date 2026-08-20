@@ -39,6 +39,7 @@ Notes for the agent:
 - Prefer asking me for the sudo password / confirmation rather than inventing workarounds.
 - If npm/node is missing, install Node 20+ (or use ~/.local/node/bin if present) and retry the install script.
 - Keep runtime data under /opt/alc/data when the installer preserves it; do not wipe battery DB / logger unless I ask.
+- Keep /opt/alc/config.yaml on update (device model, serial port, simulator, baudrate). The installer must not reset device settings to repo defaults. Only a missing config.yaml may be created from the repo template. Do not edit or replace that file yourself.
 - Report final service status and the URL to open.
 ```
 
@@ -51,7 +52,7 @@ sudo systemctl status elv-alc-dashboard
 journalctl -u elv-alc-dashboard -f
 ```
 
-Update later (same as reinstall — keeps `/opt/alc/data`):
+Update later (same as reinstall — keeps `/opt/alc/data` and `/opt/alc/config.yaml`):
 
 ```bash
 cd ELV-ALC-Dashboard

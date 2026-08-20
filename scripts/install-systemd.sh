@@ -33,16 +33,23 @@ usermod -aG dialout "$SERVICE_USER" 2>/dev/null || true
 
 echo "==> Synchronisiere Projektdateien nach $DEST…"
 mkdir -p "$DEST"
-rsync -a --delete \
-  --exclude '.git/' \
-  --exclude '.venv/' \
-  --exclude 'frontend/node_modules/' \
-  --exclude 'frontend/dist/' \
-  --exclude 'data/logger/*' \
-  --exclude 'data/battery-db.json' \
-  --exclude '__pycache__/' \
-  --exclude '*.pyc' \
-  "$ROOT/" "$DEST/"
+
+# Gerätekonfig (Modell, Port, Simulator, Baud, …) bei Updates nicht auf Repo-Default zurücksetzen.
+RSYNC_EXCLUDES=(
+  --exclude '.git/'
+  --exclude '.venv/'
+  --exclude 'frontend/node_modules/'
+  --exclude 'frontend/dist/'
+  --exclude 'data/logger/*'
+  --exclude 'data/battery-db.json'
+  --exclude '__pycache__/'
+  --exclude '*.pyc'
+)
+if [[ -f "$DEST/config.yaml" ]]; then
+  echo "==> Bestehende Gerätekonfiguration bleibt erhalten ($DEST/config.yaml)"
+  RSYNC_EXCLUDES+=(--exclude 'config.yaml')
+fi
+rsync -a --delete "${RSYNC_EXCLUDES[@]}" "$ROOT/" "$DEST/"
 
 mkdir -p "$DEST/data/logger"
 # Bestehende Runtime-Daten nicht löschen

@@ -142,7 +142,7 @@ journalctl -u elv-alc-dashboard -f
 sudo systemctl restart elv-alc-dashboard
 ```
 
-Update (keeps `data/`):
+Update (keeps `data/` and the existing `config.yaml` device settings):
 
 ```bash
 git pull
