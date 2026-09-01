@@ -9,6 +9,7 @@ from pathlib import Path
 import pytest
 
 INSTALLER = Path(__file__).resolve().parents[2] / "scripts" / "install-systemd.sh"
+UNINSTALLER = Path(__file__).resolve().parents[2] / "scripts" / "uninstall-systemd.sh"
 
 
 def test_installer_excludes_existing_config_yaml() -> None:
@@ -16,6 +17,22 @@ def test_installer_excludes_existing_config_yaml() -> None:
     assert 'if [[ -f "$DEST/config.yaml" ]]; then' in text
     assert "--exclude 'config.yaml'" in text
     assert "Bestehende Gerätekonfiguration bleibt erhalten" in text
+
+
+def test_installer_cleans_up_legacy_alc_user() -> None:
+    text = INSTALLER.read_text(encoding="utf-8")
+    assert 'LEGACY_USER="alc"' in text
+    assert 'systemctl stop "$SERVICE_NAME"' in text
+    assert 'rm -f /etc/polkit-1/rules.d/50-alc-poweroff.rules' in text
+    assert 'rm -f /etc/polkit-1/localauthority/50-local.d/50-alc-poweroff.pkla' in text
+    assert 'userdel "$LEGACY_USER"' in text
+
+
+def test_uninstaller_cleans_legacy_alc_on_purge() -> None:
+    text = UNINSTALLER.read_text(encoding="utf-8")
+    assert 'LEGACY_USER="alc"' in text
+    assert 'rm -f /etc/polkit-1/rules.d/50-alc-poweroff.rules' in text
+    assert 'remove_user "$LEGACY_USER"' in text
 
 
 @pytest.mark.skipif(shutil.which("rsync") is None, reason="rsync not installed")
