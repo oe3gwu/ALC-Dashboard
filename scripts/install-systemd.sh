@@ -6,6 +6,7 @@ ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 DEST="${DEST:-/opt/alc}"
 SERVICE_NAME="elv-alc-dashboard"
 SERVICE_USER="${SERVICE_USER:-elv-alc}"
+LEGACY_USER="alc"
 UNIT_SRC="$ROOT/systemd/elv-alc-dashboard.service"
 UNIT_DST="/etc/systemd/system/${SERVICE_NAME}.service"
 UDEV_SRC="$ROOT/udev/99-elv-alc.rules"
@@ -22,6 +23,12 @@ fi
 
 echo "==> Zielverzeichnis: $DEST"
 echo "==> Service-User:    $SERVICE_USER"
+
+# Stop first so a legacy alc process cannot recreate files after chown.
+if systemctl is-active --quiet "$SERVICE_NAME" 2>/dev/null; then
+  echo "==> Stoppe $SERVICE_NAME…"
+  systemctl stop "$SERVICE_NAME" || true
+fi
 
 if ! id -u "$SERVICE_USER" &>/dev/null; then
   echo "==> Lege Systemuser $SERVICE_USER an…"
@@ -97,6 +104,9 @@ mkdir -p /etc/polkit-1/rules.d /etc/polkit-1/localauthority/50-local.d
 sed "s/__SERVICE_USER__/$SERVICE_USER/g" "$POLKIT_RULES_SRC" > "$POLKIT_RULES_DST"
 sed "s/__SERVICE_USER__/$SERVICE_USER/g" "$POLKIT_PKLA_SRC" > "$POLKIT_PKLA_DST"
 chmod 644 "$POLKIT_RULES_DST" "$POLKIT_PKLA_DST"
+# Drop polkit files from the brief alc-user experiment (reverted in 227c7cb).
+rm -f /etc/polkit-1/rules.d/50-alc-poweroff.rules
+rm -f /etc/polkit-1/localauthority/50-local.d/50-alc-poweroff.pkla
 systemctl try-restart polkit.service 2>/dev/null || systemctl try-restart polkit 2>/dev/null || true
 
 echo "==> systemd Unit…"
@@ -112,6 +122,18 @@ fi
 
 systemctl daemon-reload
 systemctl enable --now "$SERVICE_NAME"
+
+if [[ "$SERVICE_USER" != "$LEGACY_USER" ]] && id -u "$LEGACY_USER" &>/dev/null; then
+  echo "==> Entferne Legacy-User $LEGACY_USER…"
+  pkill -u "$LEGACY_USER" 2>/dev/null || true
+  sleep 0.5
+  if ! userdel "$LEGACY_USER" 2>/dev/null; then
+    echo "Warnung: $LEGACY_USER konnte nicht gelöscht werden (noch Prozesse oder Login)."
+    echo "         Manuell: sudo pkill -u $LEGACY_USER; sudo userdel $LEGACY_USER"
+  else
+    echo "    $LEGACY_USER entfernt. Dienst läuft als $SERVICE_USER."
+  fi
+fi
 
 echo
 echo "Fertig. Status:"
