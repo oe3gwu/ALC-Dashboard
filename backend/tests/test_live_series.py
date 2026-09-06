@@ -188,6 +188,41 @@ def test_capacity_mid_range_spike_never_accepted():
         assert p["c"] == 5000.0
 
 
+def test_clear_suppresses_stale_capacity_until_fresh_low():
+    """After Stop/Start, leftover high C must not seed the new series."""
+    store = LiveSeriesStore()
+    t0 = 100_000
+    store.ingest([_ch(False)], [_m(2.6, 600.0, 2333.0)], now_ms=t0)
+    store.clear(0)
+    # Stale high capacity from previous process — ignored while fresh-armed.
+    store.ingest([_ch(False)], [_m(2.6, 670.0, 2333.0)], now_ms=t0 + 1000)
+    store.ingest([_ch(False)], [_m(2.66, 670.0, 2333.0)], now_ms=t0 + 2000)
+    pts = store.snapshot(now_ms=t0 + 2000)["channels"]["0"]["points"]
+    assert all(p["c"] is None for p in pts)
+    # Device resets capacity for the new process.
+    store.ingest([_ch(False)], [_m(2.66, 670.0, 0.5)], now_ms=t0 + 3000)
+    store.ingest([_ch(False)], [_m(2.66, 670.0, 1.0)], now_ms=t0 + 4000)
+    pts = store.snapshot(now_ms=t0 + 4000)["channels"]["0"]["points"]
+    assert pts[-1]["c"] == 1.0
+    assert pts[-2]["c"] == 0.5
+
+
+def test_capacity_down_reset_accepted_after_confirms():
+    """Sustained high→~0 capacity (new process without clear) unlocks after confirms."""
+    store = LiveSeriesStore()
+    t0 = 110_000
+    store.ingest([_ch(False)], [_m(2.6, 600.0, 2333.0)], now_ms=t0)
+    for n in range(1, 5):
+        store.ingest([_ch(False)], [_m(2.66, 670.0, 0.4)], now_ms=t0 + n * 1000)
+    pts = store.snapshot(now_ms=t0 + 4000)["channels"]["0"]["points"]
+    assert pts[0]["c"] == 2333.0
+    # First two matching ticks held; third confirm accepts the reset.
+    assert pts[1]["c"] == 2333.0
+    assert pts[2]["c"] == 2333.0
+    assert pts[3]["c"] == 0.4
+    assert pts[4]["c"] == 0.4
+
+
 def test_scrub_fills_interior_zero_needles():
     from app.services.live_series import scrub_points
 

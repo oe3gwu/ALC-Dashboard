@@ -29,8 +29,15 @@ type PendingState = Partial<Record<MetricKey, MetricPending>>
 const pendingByChannel = new Map<number, PendingState>()
 /** After Stop, do not start a new series until the channel is seen idle. */
 const holdOffChannels = new Set<number>()
+/**
+ * After Stop/Start, ignore leftover high capacity until the device reports a fresh
+ * low value (new process) or the arm times out.
+ */
+const capacityFreshSince = new Map<number, number>()
 const readoutHold = new Map<number, PendingSample>()
 const readoutPending = new Map<number, PendingState>()
+/** Max wait for a capacity reset after Stop/Start before accepting wire C as-is. */
+const CAPACITY_FRESH_TIMEOUT_MS = 15_000
 
 const GLITCH_V_ABS = 0.15 // V
 const GLITCH_V_REL = 0.04
@@ -90,7 +97,10 @@ dropLegacySessionKeys()
 
 function clearChannel(channel: number, silent = false): void {
   pendingByChannel.delete(channel)
-  if (!seriesByChannel.has(channel)) return
+  if (!seriesByChannel.has(channel)) {
+    if (!silent) notify()
+    return
+  }
   seriesByChannel.delete(channel)
   if (!silent) notify()
 }
@@ -98,6 +108,7 @@ function clearChannel(channel: number, silent = false): void {
 export function clearSeries(channel: number, holdOff = false): void {
   if (holdOff) holdOffChannels.add(channel)
   else holdOffChannels.delete(channel)
+  capacityFreshSince.set(channel, Date.now())
   readoutHold.delete(channel)
   readoutPending.delete(channel)
   clearChannel(channel)
@@ -106,11 +117,42 @@ export function clearSeries(channel: number, holdOff = false): void {
 export function clearAllSeries(): void {
   pendingByChannel.clear()
   holdOffChannels.clear()
+  capacityFreshSince.clear()
   readoutHold.clear()
   readoutPending.clear()
   if (seriesByChannel.size === 0) return
   seriesByChannel.clear()
   notify()
+}
+
+/** True while Stop/Start is waiting for a fresh capacity baseline. */
+export function isCapacityFresh(channel: number): boolean {
+  return capacityFreshSince.has(channel)
+}
+
+/**
+ * After clearSeries: drop stale high capacity until the wire shows a new-process
+ * baseline (~0) or the arm times out while running.
+ */
+function armCapacitySample(
+  channel: number,
+  raw: PendingSample,
+  running: boolean,
+): PendingSample {
+  const since = capacityFreshSince.get(channel)
+  if (since == null) return raw
+  if (!running) {
+    return { ...raw, c: null }
+  }
+  if (
+    raw.c == null ||
+    !isStableValue(raw.c, 'c') ||
+    Date.now() - since >= CAPACITY_FRESH_TIMEOUT_MS
+  ) {
+    capacityFreshSince.delete(channel)
+    return raw
+  }
+  return { ...raw, c: null }
 }
 
 /** Replace local charts from dashboard-process RAM (host/origin independent). */
@@ -212,7 +254,7 @@ export function isStableValue(value: number | null | undefined, key: MetricKey):
 
 /**
  * Stable → ~0/null, or a physically impossible capacity jump (e.g. 5 Ah → 1000 Ah).
- * Never accept into the series / readout while running.
+ * Upward spikes are never accepted; downward resets can unlock after confirms.
  */
 export function isImplausibleCapacityJump(
   prev: number | null | undefined,
@@ -221,6 +263,17 @@ export function isImplausibleCapacityJump(
   if (prev == null || !Number.isFinite(prev)) return false
   if (next == null || !Number.isFinite(next)) return isStableValue(prev, 'c')
   return Math.abs(next - prev) >= Math.max(CAPACITY_JUMP_ABS, CAPACITY_JUMP_REL * Math.abs(prev))
+}
+
+/** New process / counter reset: capacity dropped hard (not an upward serial spike). */
+export function isCapacityDownReset(
+  prev: number | null | undefined,
+  next: number | null | undefined,
+): boolean {
+  if (!isImplausibleCapacityJump(prev, next)) return false
+  if (prev == null || !Number.isFinite(prev)) return false
+  if (next == null || !Number.isFinite(next)) return isStableValue(prev, 'c')
+  return next < prev
 }
 
 export function isMetricCollapse(
@@ -306,15 +359,34 @@ export function scrubPoints(points: SeriesPoint[]): SeriesPoint[] {
   return out
 }
 
-/** Stable → ~0/null keeps the last healthy level (including trailing needles). */
+/**
+ * Stable → ~0/null keeps the last healthy level for brief needles.
+ * Sustained capacity down-resets (new process) are left intact.
+ */
 export function holdCollapses(points: SeriesPoint[]): SeriesPoint[] {
   if (points.length < 2) return points
   const out = points.map((p) => ({ ...p }))
   const keys: MetricKey[] = ['v', 'i', 'c']
-  for (let i = 1; i < out.length; i++) {
-    for (const key of keys) {
-      if (isMetricCollapse(key, out[i - 1][key], out[i][key])) {
-        out[i] = { ...out[i], [key]: out[i - 1][key] }
+  for (const key of keys) {
+    let i = 1
+    while (i < out.length) {
+      if (!isMetricCollapse(key, out[i - 1][key], out[i][key])) {
+        i += 1
+        continue
+      }
+      const left = out[i - 1][key]
+      const runStart = i
+      while (i < out.length && isMetricCollapse(key, left, out[i][key])) {
+        i += 1
+      }
+      const recovered = i < out.length && nearMetric(left, out[i][key], key)
+      // Capacity: only rewrite recovered sandwich needles. Trailing/sustained
+      // down-resets are kept (resolveMetric already filters brief tips).
+      const hold = key === 'c' ? recovered : true
+      if (hold) {
+        for (let j = runStart; j < i; j++) {
+          out[j] = { ...out[j], [key]: left }
+        }
       }
     }
   }
@@ -327,15 +399,32 @@ function resolveMetric(
   prev: number | null,
   raw: number | null,
 ): number | null {
-  // Collapses (stable → ~0/null) are never written while the channel is running.
+  // V/I collapses stay held. Capacity down-resets unlock after confirmed ticks;
+  // upward capacity spikes never unlock.
   if (isMetricCollapse(key, prev, raw)) {
-    pending[key] = { value: raw, confirms: (pending[key]?.confirms ?? 0) + 1 }
+    const confirms = (pending[key]?.confirms ?? 0) + 1
+    if (key === 'c' && isCapacityDownReset(prev, raw) && confirms >= CONFIRM_DEFAULT) {
+      delete pending[key]
+      return raw
+    }
+    pending[key] = { value: raw, confirms }
     return prev
   }
 
   const slot = pending[key]
   if (slot) {
     if (isMetricCollapse(key, prev, slot.value)) {
+      if (key === 'c' && isCapacityDownReset(prev, slot.value)) {
+        if (isCapacityDownReset(prev, raw) || isCollapsedValue(raw, 'c')) {
+          const confirms = slot.confirms + 1
+          if (confirms >= CONFIRM_DEFAULT) {
+            delete pending[key]
+            return raw
+          }
+          pending[key] = { value: raw, confirms }
+          return prev
+        }
+      }
       // Pending collapse: resume only when raw is back near the stable prev.
       if (nearMetric(prev, raw, key)) {
         delete pending[key]
@@ -363,6 +452,11 @@ function resolveMetric(
   }
 
   if (metricAbrupt(prev, raw, key)) {
+    // First capacity reading after unknown/null is a baseline, not a glitch.
+    if (key === 'c' && prev == null && raw != null) {
+      delete pending[key]
+      return raw
+    }
     pending[key] = { value: raw, confirms: 1 }
     return prev
   }
@@ -427,11 +521,20 @@ export function smoothLiveMeasurements(
   return measList.map((m) => {
     const ch = m.channel
     const c = chList.find((x) => x.channel === ch)
-    const incoming = { v: m.voltage_V ?? null, i: m.current_mA ?? null, c: m.capacity_mAh ?? null }
-    if (isIdle(c)) {
+    const idle = isIdle(c)
+    const incoming = armCapacitySample(
+      ch,
+      { v: m.voltage_V ?? null, i: m.current_mA ?? null, c: m.capacity_mAh ?? null },
+      !idle,
+    )
+    if (idle) {
       const raw = sanitizeRaw(incoming)
       const hold = readoutHold.get(ch)
       readoutPending.delete(ch)
+      if (capacityFreshSince.has(ch)) {
+        readoutHold.delete(ch)
+        return { ...m, voltage_V: raw.v, current_mA: raw.i, capacity_mAh: null }
+      }
       if (hold) {
         const sample: PendingSample = {
           v: raw.v ?? hold.v,
@@ -507,11 +610,15 @@ function sampleTick(): void {
       seriesByChannel.set(ch, series)
     }
 
-    const raw = {
-      v: m?.voltage_V ?? null,
-      i: m?.current_mA ?? null,
-      c: m?.capacity_mAh ?? null,
-    }
+    const raw = armCapacitySample(
+      ch,
+      {
+        v: m?.voltage_V ?? null,
+        i: m?.current_mA ?? null,
+        c: m?.capacity_mAh ?? null,
+      },
+      true,
+    )
     const prev = series.points.length > 0 ? series.points[series.points.length - 1] : null
     const sample = resolveSample(ch, prev, raw)
     appendPoint(series, now, sample)

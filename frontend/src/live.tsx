@@ -1,6 +1,6 @@
 import { createContext, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
 import { api, liveSocket, type ChannelParams, type LivePayload, type Measurement } from './api'
-import { replaceFromServer, smoothLiveMeasurements, updateLiveSnapshot } from './liveSeries'
+import { replaceFromServer, smoothLiveMeasurements, subscribe, updateLiveSnapshot } from './liveSeries'
 import { createStageStabilizeState, stabilizeChannels } from './stageStabilize'
 
 type LiveCtx = {
@@ -167,6 +167,13 @@ export function LiveProvider({ children }: { children: ReactNode }) {
     void hydrateSeriesRef.current()
     void refreshRef.current()
     connect()
+    const unsubSeries = subscribe(() => {
+      if (unmounted) return
+      if (rawMeasurementsRef.current.length === 0) return
+      const smoothed = smoothLiveMeasurements(channelsRef.current, rawMeasurementsRef.current)
+      measurementsRef.current = smoothed
+      setMeasurements(smoothed)
+    })
     watchdog = window.setInterval(() => {
       if (unmounted) return
       if (Date.now() - lastMsgAt > WS_STALE_MS) {
@@ -181,6 +188,7 @@ export function LiveProvider({ children }: { children: ReactNode }) {
     document.addEventListener('visibilitychange', onVisibility)
     return () => {
       unmounted = true
+      unsubSeries()
       window.removeEventListener('pagehide', onPageHide)
       window.removeEventListener('pageshow', onPageShow)
       document.removeEventListener('visibilitychange', onVisibility)

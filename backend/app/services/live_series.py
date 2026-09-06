@@ -36,6 +36,8 @@ CAPACITY_JUMP_ABS = 80.0
 CAPACITY_JUMP_REL = 0.2
 SCRUB_RUN_MAX = 20
 STABLE_I_MA = 20.0  # trickle/top-off is often 50–100 mA; 120 hid those plateaus
+# After Stop/Start, ignore leftover high C until a fresh low baseline or timeout.
+CAPACITY_FRESH_TIMEOUT_MS = 15_000
 
 
 def _now_ms(now_ms: int | None) -> int:
@@ -109,6 +111,17 @@ def is_implausible_capacity_jump(prev: float | None, nxt: float | None) -> bool:
     return abs(nxt - prev) >= max(CAPACITY_JUMP_ABS, CAPACITY_JUMP_REL * abs(prev))
 
 
+def is_capacity_down_reset(prev: float | None, nxt: float | None) -> bool:
+    """New process / counter reset: capacity dropped hard (not an upward serial spike)."""
+    if not is_implausible_capacity_jump(prev, nxt):
+        return False
+    if prev is None or not math.isfinite(prev):
+        return False
+    if nxt is None or not math.isfinite(nxt):
+        return is_stable_value(prev, "c")
+    return nxt < prev
+
+
 def is_metric_collapse(key: MetricKey, prev: float | None, nxt: float | None) -> bool:
     if is_stable_value(prev, key) and is_collapsed_value(nxt, key):
         return True
@@ -142,16 +155,28 @@ def resolve_metric(
     prev: float | None,
     raw: float | None,
 ) -> float | None:
-    # Collapses (stable → ~0/null) are never written while the channel is running.
+    # V/I collapses stay held. Capacity down-resets unlock after confirmed ticks;
+    # upward capacity spikes never unlock.
     if is_metric_collapse(key, prev, raw):
         slot = pending.get(key)
         confirms = int(slot["confirms"]) + 1 if slot else 1
+        if key == "c" and is_capacity_down_reset(prev, raw) and confirms >= CONFIRM_DEFAULT:
+            pending.pop(key, None)
+            return raw
         pending[key] = {"value": raw, "confirms": confirms}
         return prev
 
     slot = pending.get(key)
     if slot:
         if is_metric_collapse(key, prev, slot.get("value")):
+            if key == "c" and is_capacity_down_reset(prev, slot.get("value")):
+                if is_capacity_down_reset(prev, raw) or is_collapsed_value(raw, "c"):
+                    confirms = int(slot["confirms"]) + 1
+                    if confirms >= CONFIRM_DEFAULT:
+                        pending.pop(key, None)
+                        return raw
+                    pending[key] = {"value": raw, "confirms": confirms}
+                    return prev
             if near_metric(prev, raw, key):
                 pending.pop(key, None)
                 return raw
@@ -172,6 +197,10 @@ def resolve_metric(
         return prev
 
     if metric_abrupt(prev, raw, key):
+        # First capacity reading after unknown/null is a baseline, not a glitch.
+        if key == "c" and prev is None and raw is not None:
+            pending.pop(key, None)
+            return raw
         pending[key] = {"value": raw, "confirms": 1}
         return prev
 
@@ -250,10 +279,24 @@ def _scrub_metric(key: MetricKey, values: list[float | None]) -> None:
 
 
 def hold_collapses(values: list[float | None], key: MetricKey) -> None:
-    """Stable → ~0/null must keep the last healthy level (trailing needles too)."""
-    for idx in range(1, len(values)):
-        if is_metric_collapse(key, values[idx - 1], values[idx]):
-            values[idx] = values[idx - 1]
+    """Hold brief needles; keep sustained capacity down-resets (new process)."""
+    n = len(values)
+    i = 1
+    while i < n:
+        if not is_metric_collapse(key, values[i - 1], values[i]):
+            i += 1
+            continue
+        left = values[i - 1]
+        run_start = i
+        while i < n and is_metric_collapse(key, left, values[i]):
+            i += 1
+        recovered = i < n and near_metric(left, values[i], key)
+        # Capacity: only rewrite recovered sandwich needles. Trailing/sustained
+        # down-resets are kept (resolve_metric already filters brief tips).
+        hold = recovered if key == "c" else True
+        if hold:
+            for j in range(run_start, i):
+                values[j] = left
 
 
 def scrub_points(points: list[Point]) -> list[Point]:
@@ -293,11 +336,14 @@ class LiveSeriesStore:
         self._channels: dict[int, _ChannelSeries] = {}
         # After Stop, skip ingest until the channel is seen idle (avoids 1–2 leftover ticks).
         self._hold_off: set[int] = set()
+        # After Stop/Start, suppress stale high capacity until a fresh low baseline.
+        self._capacity_fresh_since: dict[int, int] = {}
 
     def clear(self, channel: int, *, hold_off: bool = False) -> None:
         with self._lock:
             ch = int(channel)
             self._channels.pop(ch, None)
+            self._capacity_fresh_since[ch] = _now_ms(None)
             if hold_off:
                 self._hold_off.add(ch)
             else:
@@ -307,6 +353,24 @@ class LiveSeriesStore:
         with self._lock:
             self._channels.clear()
             self._hold_off.clear()
+            self._capacity_fresh_since.clear()
+
+    def _arm_capacity_locked(
+        self, ch: int, cap: float | None, *, running: bool, now_ms: int
+    ) -> float | None:
+        since = self._capacity_fresh_since.get(ch)
+        if since is None:
+            return cap
+        if not running:
+            return None
+        if (
+            cap is None
+            or not is_stable_value(cap, "c")
+            or now_ms - since >= CAPACITY_FRESH_TIMEOUT_MS
+        ):
+            self._capacity_fresh_since.pop(ch, None)
+            return cap
+        return None
 
     def ingest(
         self,
@@ -345,10 +409,14 @@ class LiveSeriesStore:
                 if series.points:
                     last = series.points[-1]
                     prev = (last[2], last[3], last[4])
+                v_raw, i_raw, c_raw = sanitize_raw(
+                    m.get("voltage_V"), m.get("current_mA"), m.get("capacity_mAh")
+                )
+                c_raw = self._arm_capacity_locked(ch, c_raw, running=True, now_ms=ts)
                 v, i, cap = resolve_sample(
                     series.pending,
                     prev,
-                    (m.get("voltage_V"), m.get("current_mA"), m.get("capacity_mAh")),
+                    (v_raw, i_raw, c_raw),
                 )
                 series.points.append((ts, t, v, i, cap))
                 self._scrub_tail_locked(series)
