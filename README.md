@@ -1,5 +1,14 @@
 # ELV ALC Dashboard
 
+[![Python 3.11+](https://img.shields.io/badge/python-3.11%2B-3776AB?logo=python&logoColor=white)](https://www.python.org/)
+[![Node.js 20+](https://img.shields.io/badge/node-20%2B-339933?logo=nodedotjs&logoColor=white)](https://nodejs.org/)
+[![FastAPI](https://img.shields.io/badge/backend-FastAPI-009688?logo=fastapi&logoColor=white)](https://fastapi.tiangolo.com/)
+[![React](https://img.shields.io/badge/frontend-React%2019-61DAFB?logo=react&logoColor=black)](https://react.dev/)
+[![Linux](https://img.shields.io/badge/platform-Linux-FCC624?logo=linux&logoColor=black)](#manual-install)
+[![PWA](https://img.shields.io/badge/PWA-installable-5A0FC8)](#chrome-pwa)
+[![License](https://img.shields.io/badge/license-Apache%202.0%20%2B%20Commons%20Clause-blue.svg)](LICENSE)
+[![Last commit](https://img.shields.io/github/last-commit/oe3gwu/ALC-Dashboard)](https://github.com/oe3gwu/ALC-Dashboard/commits/main)
+
 > **AI-assisted advanced implementation** of a modern web UI for **ELV / Voltcraft ALC** chargers — a Linux successor to the Windows **ChargeProfessional** software.
 
 Logger data and battery presets are stored as files — **no SQL database**.
