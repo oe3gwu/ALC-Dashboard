@@ -17,7 +17,7 @@ export type ThemePack = {
   darkOnly?: boolean
 }
 
-/** Built-in packs. “ELV” AdminLTE; “SCCH” Password-Pusher lime; “Jerrec” dark-only. */
+/** Built-in packs. “ELV” AdminLTE; “SCCH” dark-only; “Jerrec” dark-only. */
 export const THEME_PACKS: readonly ThemePack[] = [
   {
     id: 'elv',
@@ -31,7 +31,8 @@ export const THEME_PACKS: readonly ThemePack[] = [
     label: 'SCCH',
     logoSrc: '/scch-logo.png',
     logoAlt: 'SCCH',
-    defaultMode: 'light',
+    defaultMode: 'dark',
+    darkOnly: true,
   },
   {
     id: 'jerrec',

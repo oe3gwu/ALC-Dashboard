@@ -129,42 +129,42 @@
 }
 
 /*
- * Theme pack “SCCH” — Password-Pusher style: near-black surfaces, lime #00f300.
+ * Theme pack “SCCH” — Password-Pusher style: anthrazit-grün surfaces, lime #00e600, Pechschwarz-Chrome.
  * Titles/nav/links on dark chrome are white (not black-on-black).
  */
 [data-theme-pack="scch"][data-theme="dark"] {
-  --bg0: #1a1a1a;
-  --bg1: #222222;
-  --bg2: #2c2c2c;
-  --line: #383838;
+  --bg0: #141715;
+  --bg1: #1c201d;
+  --bg2: #181c19;
+  --line: rgba(255, 255, 255, 0.09);
   --text: #ffffff;
-  --muted: #b0b0b0;
-  --accent: #00f300;
+  --muted: rgba(235, 244, 236, 0.55);
+  --accent: #00e600;
   --accent-dim: #00c300;
   --warn: #ec6a0c;
   --danger: #dd4b39;
   --danger-solid: #b83428;
   --danger-solid-dim: #9a2b21;
-  --ok: #00f300;
-  --font: "Source Sans Pro", "Helvetica Neue", Helvetica, Arial, sans-serif;
+  --ok: #00e600;
+  --font: "Poppins", "Segoe UI", system-ui, sans-serif;
   --mono: "IBM Plex Mono", ui-monospace, monospace;
-  --sidebar-bg: #161616;
-  --sidebar-line: #121212;
-  --channel-bg: #222222;
-  --panel-bg: #222222;
-  --metric-bg: #282828;
-  --chart-bg: #161616;
+  --sidebar-bg: #000000;
+  --sidebar-line: rgba(255, 255, 255, 0.09);
+  --channel-bg: #1e1e1e;
+  --panel-bg: #1c201d;
+  --metric-bg: #181c19;
+  --chart-bg: #181c19;
   --chart-u: #3c8dbc;
   --chart-i: #ec6a0c;
   --chart-c: #00a65a;
-  --input-bg: #282828;
-  --nav-link: #b0b0b0;
-  --nav-hover-bg: #2c2c2c;
-  --nav-active-bg: #2c2c2c;
-  --nav-active-color: #00f300;
-  --primary-text: #ffffff;
-  --btn-bg: #2c2c2c;
-  --btn-border: #383838;
+  --input-bg: #181c19;
+  --nav-link: rgba(255, 255, 255, 0.6);
+  --nav-hover-bg: rgba(255, 255, 255, 0.06);
+  --nav-active-bg: rgba(255, 255, 255, 0.10);
+  --nav-active-color: #00e600;
+  --primary-text: #000000;
+  --btn-bg: #1c201d;
+  --btn-border: rgba(255, 255, 255, 0.09);
   --danger-btn-bg: rgba(221, 75, 57, 0.18);
   --danger-btn-border: rgba(221, 75, 57, 0.5);
   --danger-btn-text: #f5b4ac;
@@ -174,25 +174,25 @@
   --toast-err-bg: rgba(221, 75, 57, 0.14);
   --toast-err-border: rgba(221, 75, 57, 0.45);
   --toast-err-text: #f5b4ac;
-  --toast-ok-bg: rgba(0, 243, 0, 0.12);
-  --toast-ok-border: rgba(0, 243, 0, 0.4);
-  --toast-ok-text: #00f300;
+  --toast-ok-bg: rgba(0, 230, 0, 0.12);
+  --toast-ok-border: rgba(0, 230, 0, 0.4);
+  --toast-ok-text: #00e600;
   --modal-backdrop: rgba(0, 0, 0, 0.65);
   --live-lost-backdrop: rgba(50, 50, 50, 0.7);
   --switch-track: rgba(255, 255, 255, 0.18);
   --switch-knob: #ffffff;
   --switch-fg: #ffffff;
-  --header-bg: #161616;
-  --header-brand-bg: #121212;
-  --header-border: #161616;
+  --header-bg: #000000;
+  --header-brand-bg: #000000;
+  --header-border: #000000;
   --brand-fg: #ffffff;
   --topbar-bg: var(--header-bg);
   --topbar-fg: #ffffff;
   --topbar-border: var(--header-bg);
-  --radius: 3px;
+  --radius: 0.7rem;
   --header-height: 3.25rem;
-  --channel-edge: #00c300;
-  --channel-edge-active: #dd4b39;
+  --channel-edge: var(--accent);
+  --channel-edge-active: var(--danger);
   --on-danger-text: #ffffff;
   color-scheme: dark;
 }
@@ -362,12 +362,18 @@ body {
 a { color: var(--accent); text-decoration: none; }
 a:hover { text-decoration: underline; }
 
+/* Text selection follows the active theme pack accent. */
+::selection {
+  background: color-mix(in srgb, var(--accent) 35%, transparent);
+  color: var(--text);
+}
+
 /* SCCH dark: links same grey as section titles (e.g. Einstellungen → Verbindung); hover → lime. */
 [data-theme-pack="scch"][data-theme="dark"] a {
   color: var(--muted);
 }
 [data-theme-pack="scch"][data-theme="dark"] a:hover {
-  color: #00f300;
+  color: var(--accent);
 }
 [data-theme-pack="scch"][data-theme="dark"] a.btn.primary,
 [data-theme-pack="scch"][data-theme="dark"] a.primary {

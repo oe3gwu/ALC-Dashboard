@@ -18,13 +18,16 @@
     </style>
     <script>
       try {
+        var pack = localStorage.getItem('elv-alc-theme-pack')
         var t = localStorage.getItem('elv-alc-theme')
+        if (pack === 'scch' || pack === 'jerrec' || pack === 'dracula') t = 'dark'
         if (t === 'light' || t === 'dark') document.documentElement.dataset.theme = t
+        if (pack === 'elv' || pack === 'scch' || pack === 'jerrec') document.documentElement.dataset.themePack = pack
       } catch (e) {}
     </script>
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-    <link href="https://fonts.googleapis.com/css2?family=Source+Sans+Pro:wght@400;600;700&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet" />
+    <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;600&family=Source+Sans+Pro:wght@400;600;700&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet" />
   </head>
   <body>
     <div id="root"></div>
