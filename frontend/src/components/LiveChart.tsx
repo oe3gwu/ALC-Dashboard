@@ -214,6 +214,8 @@ export function LiveChart({
       const colorU = cssColor('--chart-u', COLOR_U)
       const colorI = cssColor('--chart-i', COLOR_I)
       const colorC = cssColor('--chart-c', COLOR_C)
+      const axisColor = cssColor('--chart-axis', '#8e989d')
+      const gridColor = cssColor('--chart-grid', 'rgba(142, 152, 157, 0.12)')
 
       const opts: uPlot.Options =
         seriesMode === 'cap'
@@ -230,14 +232,14 @@ export function LiveChart({
               ],
               axes: [
                 {
-                  stroke: '#8e989d',
-                  grid: { stroke: 'rgba(142, 152, 157, 0.12)', width: 1 },
+                  stroke: axisColor,
+                  grid: { stroke: gridColor, width: 1 },
                   size: axisSm,
                   values: (_u, vals) => vals.map((v) => (Math.abs(v) >= 10 ? v.toFixed(0) : v.toFixed(1))),
                 },
                 {
                   stroke: colorC,
-                  grid: { stroke: 'rgba(142, 152, 157, 0.12)', width: 1 },
+                  grid: { stroke: gridColor, width: 1 },
                   size: axisMd,
                   values: (_u, vals) => vals.map((v) => v.toFixed(v >= 100 ? 0 : 1)),
                 },
@@ -268,14 +270,14 @@ export function LiveChart({
               ],
               axes: [
                 {
-                  stroke: '#8e989d',
-                  grid: { stroke: 'rgba(142, 152, 157, 0.12)', width: 1 },
+                  stroke: axisColor,
+                  grid: { stroke: gridColor, width: 1 },
                   size: axisSm,
                   values: (_u, vals) => vals.map((v) => (Math.abs(v) >= 10 ? v.toFixed(0) : v.toFixed(1))),
                 },
                 {
                   stroke: colorU,
-                  grid: { stroke: 'rgba(142, 152, 157, 0.12)', width: 1 },
+                  grid: { stroke: gridColor, width: 1 },
                   size: axisMd,
                   values: (_u, vals) => vals.map((v) => v.toFixed(v >= 10 ? 1 : 2)),
                 },

@@ -1,10 +1,9 @@
 /* ============================================
    CORPORATE DESIGN TOKENS – SCCH Hagenberg
-   Referenz für das Corporate Design (Light auf :root, Dark auf
-   :root[data-bs-theme="dark"]).
-   Das Dashboard lädt diese Datei nicht und nutzt kein Bootstrap.
-   Die Markenwerte sind im SCCH-Block von src/index.css umgesetzt
-   (data-theme-pack="scch").
+   Single Source of Truth für das Corporate Design.
+   Light: [data-theme-pack="scch"]
+   Dark:  [data-theme-pack="scch"][data-theme="dark"]
+   Das Dashboard mappt diese Variablen im SCCH-Block von index.css.
    ============================================ */
 :root {
   /* ---- Farben: Marke (beide Themes identisch) ---- */
@@ -40,19 +39,6 @@
   --bs-toggle-active-bg: rgba(255, 255, 255, 0.10);
   --bs-toggler-border-color: rgba(255, 255, 255, 0.20);
 
-  /* ---- SCCH Light (Default): sanftes Off-White statt reinem Weiß/Schwarz ---- */
-  color-scheme: light;
-  --bs-body-bg:      #F5F7F6;  /* leicht getöntes Weiß statt #FFFFFF – schont die Augen */
-  --bs-body-color:   #1B1D1F;  /* weiches Beinahe-Schwarz statt #000000 */
-  --bs-tertiary-color: rgba(28, 40, 33, 0.55); /* gedämpfte Captions, Labels, Meta (grünstichig) */
-  --bs-card-bg:      #FFFFFF;  /* Karten heben sich als eigene, hellste Ebene ab */
-  --bs-tertiary-bg:  #E9EEEA;  /* helle Flächen: Card-Header, Sektionen (grünstichig) */
-  --bs-border-color: rgba(24, 48, 32, 0.10);   /* dezente grünstichige Trennung statt Neutralgrau */
-  --bs-primary-text: #13A83E;  /* gedämpftes Grün für große Textflächen (Zahlen, Kicker) auf Hellgrund */
-
-  /* Hero-Fläche (Light: Pechschwarz) */
-  --bs-hero-bg:   #000000;
-
   /* RGB-Varianten – benötigt von Bootstrap-5.3-Utilities (rgba(var(--bs-*-rgb), …)) */
   --bs-primary-rgb: 0, 230, 0;
   --bs-secondary-rgb: 0, 0, 0;
@@ -62,7 +48,7 @@
 
   /* Schrift */
   --bs-body-font-family: 'Poppins', 'Segoe UI', system-ui, sans-serif;
-  --bs-font-monospace: 'JetBrains Mono', 'Fira Code', monospace;
+  --bs-font-monospace: 'JetBrains Mono', 'Fira Code', ui-monospace, monospace;
   --bs-font-weight-light: 300;   /* SCCH nutzt Light-Weight */
 
   /* Spacing / Layout */
@@ -78,21 +64,38 @@
   --bs-border-radius-xl: 1.6rem;    /* große Flächen */
   --scch-radius-pill: 50rem;
 
-  /* Schatten – weich statt hart */
-  --bs-box-shadow: 0 1px 2px rgba(0,0,0,0.04), 0 6px 16px rgba(20,40,30,0.07);
-  --bs-box-shadow-lg: 0 8px 20px rgba(20,40,30,0.10), 0 18px 44px rgba(20,40,30,0.12);
-  --scch-header-shadow: 0 2px 16px rgba(0, 0, 0, 0.25);
-
   /* dezente Seitenhintergrund-Verlaufsnuance (hellgrünlicher Halo oben) */
   --scch-bg-gradient: radial-gradient(1100px 420px at 50% -140px, rgba(var(--bs-primary-rgb), 0.10), transparent 70%);
 
   /* Übergänge */
   --scch-transition: 0.2s cubic-bezier(.4,0,.2,1);
+
+  /* Header-Schatten ist in beiden Themes gleich (Pechschwarz-Chrome). */
+  --scch-header-shadow: 0 2px 16px rgba(0, 0, 0, 0.25);
+}
+
+/* ---- SCCH Light (Default): sanftes Off-White statt reinem Weiß/Schwarz ---- */
+[data-theme-pack="scch"] {
+  color-scheme: light;
+  --bs-body-bg:      #F5F7F6;  /* leicht getöntes Weiß statt #FFFFFF – schont die Augen */
+  --bs-body-color:   #1B1D1F;  /* weiches Beinahe-Schwarz statt #000000 */
+  --bs-tertiary-color: rgba(28, 40, 33, 0.55); /* gedämpfte Captions, Labels, Meta (grünstichig) */
+  --bs-card-bg:      #FFFFFF;  /* Karten heben sich als eigene, hellste Ebene ab */
+  --bs-tertiary-bg:  #E9EEEA;  /* helle Flächen: Card-Header, Sektionen (grünstichig) */
+  --bs-border-color: rgba(24, 48, 32, 0.10);   /* dezente grünstichige Trennung statt Neutralgrau */
+  --bs-primary-text: #13A83E;  /* gedämpftes Grün für große Textflächen (Zahlen, Kicker) auf Hellgrund */
+
+  /* Hero-Fläche (Light: Pechschwarz) */
+  --bs-hero-bg:   #000000;
+
+  /* Schatten – weich statt hart */
+  --bs-box-shadow: 0 1px 2px rgba(0,0,0,0.04), 0 6px 16px rgba(20,40,30,0.07);
+  --bs-box-shadow-lg: 0 8px 20px rgba(20,40,30,0.10), 0 18px 44px rgba(20,40,30,0.12);
 }
 
 /* ---- SCCH Dark: grünstichiges Anthrazit statt Pechschwarz (Pechschwarz NUR Navbar/Footer) ----
    Der dezente Grünstich harmoniert mit dem Lime-Akzent (#00E600). */
-:root[data-bs-theme="dark"] {
+[data-theme-pack="scch"][data-theme="dark"] {
   color-scheme: dark;
   --bs-body-bg:        #141715;  /* Seitenfläche: dunkles Anthrazit mit Grünstich */
   --bs-body-color:     #FFFFFF;
